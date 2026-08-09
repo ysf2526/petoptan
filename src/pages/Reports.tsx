@@ -14,6 +14,7 @@ import {
   Boxes,
   FileSpreadsheet,
   Truck,
+  ShoppingCart,
 } from 'lucide-react';
 
 type DatePreset = 'TODAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'LAST_MONTH' | 'CUSTOM';
