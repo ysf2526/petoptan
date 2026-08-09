@@ -237,7 +237,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 print:bg-gray-50 print:border-gray-300">
                 <span className="text-slate-400 uppercase font-semibold text-[10px] block print:text-gray-600">MÜŞTERİ / FİRMA</span>
                 <div className="text-base font-extrabold text-white mt-0.5 print:text-black">{customer.business_name}</div>
-                {customer.contact_person && <div className="text-slate-300 print:text-gray-700">Yetkili: {customer.contact_person}</div>}
+                {customer.contact_name && <div className="text-slate-300 print:text-gray-700">Yetkili: {customer.contact_name}</div>}
                 {customer.phone && <div className="text-slate-400 print:text-gray-600 font-mono">Telefon: {customer.phone}</div>}
               </div>
 
