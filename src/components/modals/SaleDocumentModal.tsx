@@ -211,8 +211,10 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
                 <div>
                   <span className="text-slate-400 uppercase font-semibold text-[10px] tracking-wider block print:text-gray-600">MÜŞTERİ / PETSHOP BİLGİLERİ</span>
                   <div className="text-sm font-bold text-white mt-1 print:text-black">{sale.customer_name}</div>
-                  {customer?.contact_name && (
-                    <div className="text-slate-300 print:text-gray-700 mt-0.5 font-medium">Yetkili: {customer.contact_name}</div>
+                  {(customer?.contact_name || customer?.contact_person) && (
+                    <div className="text-slate-300 print:text-gray-700 mt-0.5 font-medium">
+                      Yetkili: {customer?.contact_name || customer?.contact_person}
+                    </div>
                   )}
                   {customer?.phone && (
                     <div className="text-slate-400 print:text-gray-600 font-mono mt-0.5">Tel: {customer.phone}</div>

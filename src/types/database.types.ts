@@ -82,6 +82,7 @@ export interface Customer {
   owner_id: string;
   business_name: string;
   contact_name: string | null;
+  contact_person?: string | null;
   phone: string | null;
   email: string | null;
   address: string | null;
