@@ -37,6 +37,9 @@ export const StockMovements: React.FC = () => {
 
   useEffect(() => {
     fetchMovements();
+    const handleRefresh = () => fetchMovements();
+    window.addEventListener('refresh-data', handleRefresh);
+    return () => window.removeEventListener('refresh-data', handleRefresh);
   }, [fetchMovements]);
 
   const filteredMovements = movements.filter((m) => {

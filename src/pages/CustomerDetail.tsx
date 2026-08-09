@@ -16,6 +16,7 @@ import {
   Loader2,
   BookOpen,
   DollarSign,
+  Send,
 } from 'lucide-react';
 
 interface PurchaseHistoryItem {
@@ -31,7 +32,7 @@ interface PurchaseHistoryItem {
 export const CustomerDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { openPaymentModal, openNewSaleModal } = useOutletContext<LayoutContextType>();
+  const { openPaymentModal, openNewSaleModal, openCustomerStatementModal } = useOutletContext<LayoutContextType>();
 
   const [loading, setLoading] = useState(true);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -186,12 +187,20 @@ export const CustomerDetail: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => openCustomerStatementModal(customer.id)}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
+          >
+            <Send className="w-4 h-4" />
+            <span>CARİ ÖZETİ WHATSAPP'TAN GÖNDER</span>
+          </button>
+
           <button
             onClick={() => openPaymentModal(customer.id)}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5 shadow-lg shadow-emerald-600/20"
+            className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold px-4 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5 transition-all"
           >
-            <Receipt className="w-4 h-4" />
+            <Receipt className="w-4 h-4 text-emerald-400" />
             <span>Tahsilat Gir</span>
           </button>
 
@@ -333,13 +342,15 @@ export const CustomerDetail: React.FC = () => {
                         <td className="p-3 text-slate-400 font-mono">{formatDate(l.created_at)}</td>
                         <td className="p-3 font-bold">
                           <span
-                            className={`px-2 py-0.5 rounded text-[10px] ${
+                            className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
                               l.movement_type === 'BORÇ'
-                                ? 'bg-amber-950 text-amber-300'
-                                : 'bg-emerald-950 text-emerald-300'
+                                ? 'bg-amber-950 text-amber-300 border border-amber-800/40'
+                                : l.description.includes('Mahsup')
+                                ? 'bg-purple-950 text-purple-300 border border-purple-800/40'
+                                : 'bg-emerald-950 text-emerald-300 border border-emerald-800/40'
                             }`}
                           >
-                            {l.movement_type}
+                            {l.description.includes('Mahsup') ? 'MAHSUP' : l.movement_type}
                           </span>
                         </td>
                         <td className="p-3 text-slate-300">{l.description}</td>

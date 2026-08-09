@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { parseErrorMessage } from '@/utils/errors';
-import { formatCurrency, formatNumber, calculateUnitProfit } from '@/utils/formatters';
+import { formatCurrency, formatNumber } from '@/utils/formatters';
 import { Customer, Product } from '@/types/database.types';
 import {
   X,
@@ -19,7 +19,7 @@ import {
 interface NewSaleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (saleId?: string) => void;
 }
 
 interface SelectedItem {
@@ -28,7 +28,7 @@ interface SelectedItem {
   unit: string;
   current_stock: number;
   purchase_price: number;
-  sale_price: number; // editable
+  sale_price: number;
   quantity: number;
 }
 
@@ -140,6 +140,11 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
     const prod = products.find((p) => p.id === prodId);
     if (!prod) return;
 
+    if (prod.current_stock <= 0) {
+      showError(`"${prod.product_name}" ürününde mevcut stok 0 adettir. Satış yapmadan önce depoya "Mal Girişi" yapmalısınız.`);
+      return;
+    }
+
     if (items.some((it) => it.product_id === prodId)) {
       showError('Bu ürün zaten listeye eklendi.');
       return;
@@ -199,12 +204,12 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
     e.preventDefault();
 
     if (!selectedCustomerId) {
-      showError('Lütfen müşteri seçiniz.');
+      showError('Lütfen bir müşteri seçiniz.');
       return;
     }
 
     if (items.length === 0) {
-      showError('Lütfen satışa en az 1 ürün ekleyiniz.');
+      showError('Lütfen sağ üstteki "+ Ürün Ekle..." menüsünden satışa en az 1 ürün ekleyiniz.');
       return;
     }
 
@@ -261,7 +266,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
       if (data && data.success) {
         showSuccess(`Satış başarıyla tamamlandı! (#${data.sale_number})`);
         onClose();
-        if (onSuccess) onSuccess();
+        if (onSuccess) onSuccess(data.sale_id);
       } else {
         showError('Satış kaydı oluşturulamadı.');
       }
@@ -377,18 +382,18 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Satış Kalemleri</h3>
-                <div className="w-64">
+                <div className="w-72">
                   <select
                     onChange={(e) => {
                       handleAddItem(e.target.value);
                       e.target.value = '';
                     }}
-                    className="w-full bg-slate-950 border border-brand-500/50 rounded-xl p-2 text-slate-100 text-xs focus:ring-1 focus:ring-brand-500 outline-none"
+                    className="w-full bg-slate-950 border border-brand-500/70 rounded-xl p-2.5 text-slate-100 text-xs font-semibold focus:ring-2 focus:ring-brand-500 outline-none"
                   >
                     <option value="">+ Ürün Ekle...</option>
                     {products.map((p) => (
-                      <option key={p.id} value={p.id} disabled={p.current_stock <= 0}>
-                        {p.product_name} (Stok: {p.current_stock} {p.unit}) - {formatCurrency(p.sale_price)}
+                      <option key={p.id} value={p.id}>
+                        {p.product_name} {p.current_stock > 0 ? `(Stok: ${p.current_stock} ${p.unit})` : '(STOK YOK!)'} - {formatCurrency(p.sale_price)}
                       </option>
                     ))}
                   </select>
@@ -398,8 +403,9 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
               {/* Items Table */}
               <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950/60">
                 {items.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500 text-xs">
-                    Henüz ürün eklenmedi. Yukarıdaki listeden ürün seçebilirsiniz.
+                  <div className="p-8 text-center text-slate-400 text-xs space-y-1">
+                    <p className="font-bold text-amber-400">Henüz satışa ürün eklenmedi!</p>
+                    <p className="text-slate-500">Sağ üstteki <span className="text-brand-400 font-semibold">+ Ürün Ekle...</span> menüsünden satılacak ürünleri seçiniz.</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -409,22 +415,20 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                           <th className="p-3">Ürün Adı</th>
                           <th className="p-3 w-24">Mevcut Stok</th>
                           <th className="p-3 w-28">Satış Adedi</th>
-                          <th className="p-3 w-32">Birim Fiyat (TL)</th>
-                          <th className="p-3 w-32 text-right">Toplam Fiyat</th>
-                          <th className="p-3 w-28 text-right">Birim Kâr</th>
+                          <th className="p-3 w-36">Birim Satış Fiyatı (TL)</th>
+                          <th className="p-3 w-36 text-right">Toplam Fiyat</th>
                           <th className="p-3 w-12 text-center">Sil</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/60 text-slate-200">
                         {items.map((it, idx) => {
-                          const unitProfit = calculateUnitProfit(it.purchase_price, it.sale_price);
                           const isStockError = it.quantity > it.current_stock;
                           return (
                             <tr key={it.product_id} className={isStockError ? 'bg-rose-950/20' : ''}>
                               <td className="p-3 font-semibold text-slate-100">
                                 {it.product_name}
                                 <span className="text-[10px] text-slate-500 block font-normal">
-                                  Alış: {formatCurrency(it.purchase_price)} / Birim: {it.unit}
+                                  Birim: {it.unit}
                                 </span>
                               </td>
                               <td className="p-3 font-medium text-slate-400">
@@ -455,9 +459,6 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                               <td className="p-3 text-right font-extrabold text-white">
                                 {formatCurrency(it.quantity * it.sale_price)}
                               </td>
-                              <td className="p-3 text-right font-semibold text-emerald-400">
-                                {formatCurrency(unitProfit * it.quantity)}
-                              </td>
                               <td className="p-3 text-center">
                                 <button
                                   type="button"
@@ -477,7 +478,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
               </div>
             </div>
 
-            {/* Step 3: Payment Schedule Customizer (If Vadeli) */}
+            {/* Step 3: Clean Vertical List Payment Schedule Customizer (If Vadeli) */}
             {paymentType === 'vadeli' && totals.grandTotal > 0 && (
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/80 space-y-3">
                 <div className="flex items-center justify-between">
@@ -486,7 +487,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                       Haftalık Ödeme Planı (Taksitler)
                     </h3>
                     <p className="text-[11px] text-slate-400">
-                      Sistem 30 gün için varsayılan 4 haftalık eşit taksit üretir. İstenirse tarihler ve tutarlar değiştirilebilir.
+                      Tarihleri ve taksit tutarlarını liste üzerinden düzenleyebilirsiniz.
                     </p>
                   </div>
                   <button
@@ -499,37 +500,51 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Vertical Clean Stack */}
+                <div className="space-y-2">
                   {schedules.map((sch, sIdx) => (
-                    <div key={sIdx} className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex flex-col gap-2">
-                      <div className="flex items-center justify-between text-xs text-slate-400 font-semibold">
-                        <span>{sIdx + 1}. Ödeme Tarihi</span>
+                    <div
+                      key={sIdx}
+                      className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    >
+                      <span className="font-semibold text-slate-200 shrink-0 min-w-[90px]">
+                        {sIdx + 1}. Taksit
+                      </span>
+
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="text-slate-400 text-xs font-medium">Tarih:</span>
+                        <input
+                          type="date"
+                          value={sch.due_date}
+                          onChange={(e) => handleUpdateSchedule(sIdx, 'due_date', e.target.value)}
+                          className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 outline-none focus:border-brand-500"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-1 justify-start sm:justify-end">
+                        <span className="text-slate-400 text-xs font-medium">Tutar:</span>
+                        <div className="relative w-36">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={sch.amount}
+                            onChange={(e) => handleUpdateSchedule(sIdx, 'amount', e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-700 focus:border-brand-500 rounded-lg py-1.5 pl-2 pr-7 text-right text-xs font-bold text-white outline-none"
+                          />
+                          <span className="absolute right-2 top-1.5 text-[11px] font-bold text-slate-400">TL</span>
+                        </div>
+
                         {schedules.length > 1 && (
                           <button
                             type="button"
                             onClick={() => handleRemoveScheduleRow(sIdx)}
-                            className="text-slate-500 hover:text-rose-400"
+                            className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 rounded-lg ml-1"
+                            title="Taksit Sil"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         )}
-                      </div>
-                      <input
-                        type="date"
-                        value={sch.due_date}
-                        onChange={(e) => handleUpdateSchedule(sIdx, 'due_date', e.target.value)}
-                        className="bg-slate-950 border border-slate-700 rounded-lg p-1.5 text-xs text-slate-100 outline-none"
-                      />
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-slate-400 font-semibold">Tutar:</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          value={sch.amount}
-                          onChange={(e) => handleUpdateSchedule(sIdx, 'amount', e.target.value)}
-                          className="flex-1 bg-slate-950 border border-slate-700 focus:border-brand-500 rounded-lg p-1.5 text-right text-xs font-bold text-white outline-none"
-                        />
                       </div>
                     </div>
                   ))}
@@ -553,23 +568,13 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
           </form>
         )}
 
-        {/* Footer Summary & Action */}
+        {/* Footer Summary & Action (No Cost or Profit revealed for Customer Privacy) */}
         <div className="p-4 sm:p-5 border-t border-slate-800 bg-slate-900 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-6 text-xs w-full sm:w-auto justify-between sm:justify-start">
-            <div>
-              <span className="text-slate-400 block font-medium">Toplam Maliyet</span>
-              <span className="font-bold text-slate-300">{formatCurrency(totals.totalCost)}</span>
-            </div>
-            <div>
-              <span className="text-slate-400 block font-medium">Hesaplanan Kâr</span>
-              <span className="font-extrabold text-emerald-400 text-sm">{formatCurrency(totals.totalProfit)}</span>
-            </div>
-            <div>
-              <span className="text-slate-400 block font-medium">Genel Toplam Tutar</span>
-              <span className="font-extrabold text-white text-base sm:text-lg text-brand-400">
-                {formatCurrency(totals.grandTotal)}
-              </span>
-            </div>
+          <div className="flex items-center gap-3 text-xs w-full sm:w-auto justify-between sm:justify-start">
+            <span className="text-slate-400 font-semibold uppercase tracking-wider">Genel Toplam Tutar:</span>
+            <span className="font-black text-white text-lg sm:text-xl text-brand-400">
+              {formatCurrency(totals.grandTotal)}
+            </span>
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -584,8 +589,8 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={loading || items.length === 0}
-              className="flex-1 sm:flex-initial py-2.5 px-6 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white font-bold text-xs shadow-lg shadow-brand-500/25 flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
+              disabled={loading}
+              className="flex-1 sm:flex-initial py-2.5 px-6 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white font-bold text-xs shadow-lg shadow-brand-500/25 flex items-center justify-center gap-2 transition-all disabled:opacity-50 active:scale-98"
             >
               {loading ? (
                 <>

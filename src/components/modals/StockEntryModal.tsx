@@ -3,8 +3,8 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { parseErrorMessage } from '@/utils/errors';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
-import { Product, MovementType } from '@/types/database.types';
-import { X, Boxes, Loader2, CheckCircle2 } from 'lucide-react';
+import { Product, Supplier, MovementType } from '@/types/database.types';
+import { X, Boxes, Loader2, CheckCircle2, Building2 } from 'lucide-react';
 
 interface StockEntryModalProps {
   isOpen: boolean;
@@ -25,8 +25,11 @@ export const StockEntryModal: React.FC<StockEntryModalProps> = ({
   const [fetchingProducts, setFetchingProducts] = useState(false);
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
   const [movementType, setMovementType] = useState<MovementType>('PURCHASE');
+  const [purchaseType, setPurchaseType] = useState<'pesin' | 'vadeli'>('pesin');
   const [quantity, setQuantity] = useState<number | ''>('');
   const [unitCost, setUnitCost] = useState<number | ''>('');
   const [note, setNote] = useState<string>('');
@@ -35,21 +38,35 @@ export const StockEntryModal: React.FC<StockEntryModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      const loadProds = async () => {
+      const loadInitialData = async () => {
         setFetchingProducts(true);
         try {
-          const { data } = await supabase
+          // Fetch products
+          const { data: pData } = await supabase
             .from('products')
             .select('*')
             .eq('active', true)
             .is('deleted_at', null)
             .order('product_name');
 
-          setProducts(data || []);
+          setProducts(pData || []);
           if (defaultProductId) {
             setSelectedProductId(defaultProductId);
-          } else if (data && data.length > 0) {
-            setSelectedProductId(data[0].id);
+          } else if (pData && pData.length > 0) {
+            setSelectedProductId(pData[0].id);
+          }
+
+          // Fetch suppliers
+          const { data: sData } = await supabase
+            .from('suppliers')
+            .select('*')
+            .eq('active', true)
+            .is('deleted_at', null)
+            .order('company_name');
+
+          setSuppliers(sData || []);
+          if (sData && sData.length > 0) {
+            setSelectedSupplierId(sData[0].id);
           }
         } catch (e) {
           console.error(e);
@@ -57,13 +74,16 @@ export const StockEntryModal: React.FC<StockEntryModalProps> = ({
           setFetchingProducts(false);
         }
       };
-      loadProds();
+      loadInitialData();
     }
   }, [isOpen, defaultProductId]);
 
   useEffect(() => {
     if (selectedProduct) {
       setUnitCost(selectedProduct.purchase_price);
+      if (selectedProduct.supplier_id) {
+        setSelectedSupplierId(selectedProduct.supplier_id);
+      }
     }
   }, [selectedProductId]);
 
@@ -83,6 +103,11 @@ export const StockEntryModal: React.FC<StockEntryModalProps> = ({
       return;
     }
 
+    if (movementType === 'PURCHASE' && purchaseType === 'vadeli' && !selectedSupplierId) {
+      showError('Vadeli mal alımında tedarikçi seçimi zorunludur.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -92,6 +117,8 @@ export const StockEntryModal: React.FC<StockEntryModalProps> = ({
         p_quantity: qty,
         p_unit_cost: unitCost !== '' ? Number(unitCost) : null,
         p_note: note || (movementType === 'PURCHASE' ? 'Tedarikçiden Mal Girişi' : 'Depo Stok Güncellemesi'),
+        p_purchase_type: purchaseType,
+        p_supplier_id: selectedSupplierId || null,
       });
 
       if (error) {
@@ -101,7 +128,11 @@ export const StockEntryModal: React.FC<StockEntryModalProps> = ({
       }
 
       if (data && data.success) {
-        showSuccess(`Stok başarıyla güncellendi! (Yeni Stok: ${formatNumber(data.new_stock)} ${selectedProduct?.unit || 'Adet'})`);
+        const msg = movementType === 'PURCHASE' && purchaseType === 'vadeli'
+          ? `Stok eklendi ve Tedarikçi Borcu işlendi! (Yeni Stok: ${formatNumber(data.new_stock)} ${selectedProduct?.unit || 'Adet'})`
+          : `Stok başarıyla güncellendi! (Yeni Stok: ${formatNumber(data.new_stock)} ${selectedProduct?.unit || 'Adet'})`;
+
+        showSuccess(msg);
         onClose();
         if (onSuccess) onSuccess();
       } else {
@@ -114,11 +145,13 @@ export const StockEntryModal: React.FC<StockEntryModalProps> = ({
     }
   };
 
+  const calculatedTotalPurchase = (Number(quantity) || 0) * (unitCost !== '' ? Number(unitCost) : (selectedProduct?.purchase_price || 0));
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
       <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md" onClick={onClose} />
 
-      <div className="relative bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl z-10 overflow-hidden flex flex-col">
+      <div className="relative bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl z-10 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900">
           <div className="flex items-center gap-3">
@@ -139,10 +172,10 @@ export const StockEntryModal: React.FC<StockEntryModalProps> = ({
         {fetchingProducts ? (
           <div className="p-8 text-center text-slate-400 flex flex-col items-center">
             <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mb-2" />
-            <span>Ürünler Yükleniyor...</span>
+            <span>Ürünler ve Tedarikçiler Yükleniyor...</span>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-5">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-5 overflow-y-auto custom-scrollbar">
             {/* Movement Type Radio Strip */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
@@ -170,6 +203,67 @@ export const StockEntryModal: React.FC<StockEntryModalProps> = ({
                 ))}
               </div>
             </div>
+
+            {/* If Purchase: Peşin / Vadeli Option */}
+            {movementType === 'PURCHASE' && (
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                  Satın Alma Ödeme Durumu *
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPurchaseType('pesin')}
+                    className={`flex-1 py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      purchaseType === 'pesin'
+                        ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400 shadow-inner'
+                        : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Peşin Alım (Borçsuz)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPurchaseType('vadeli')}
+                    className={`flex-1 py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      purchaseType === 'vadeli'
+                        ? 'bg-amber-600/20 border-amber-500 text-amber-400 shadow-inner'
+                        : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Vadeli Alım (+Tedarikçi Borcu)
+                  </button>
+                </div>
+
+                {purchaseType === 'vadeli' && (
+                  <div className="pt-2">
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1">
+                      <Building2 className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Alım Yapılan Tedarikçi Firma *</span>
+                    </label>
+                    <select
+                      required
+                      value={selectedSupplierId}
+                      onChange={(e) => setSelectedSupplierId(e.target.value)}
+                      className="w-full bg-slate-900 border border-amber-700/60 rounded-xl p-2.5 text-slate-100 text-xs focus:border-amber-500 outline-none"
+                    >
+                      <option value="">-- Tedarikçi Seçin --</option>
+                      {suppliers.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.company_name}
+                        </option>
+                      ))}
+                    </select>
+
+                    {calculatedTotalPurchase > 0 && selectedSupplierId && (
+                      <p className="text-[11px] text-amber-400 font-semibold mt-2">
+                        + {formatCurrency(calculatedTotalPurchase)} tutarında Tedarikçi Borç kaydı işlenecektir.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Product Selection */}
             <div>

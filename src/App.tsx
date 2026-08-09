@@ -1,9 +1,9 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useOutletContext } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import { ToastProvider } from '@/context/ToastContext';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
-import { Layout, LayoutContextType } from '@/components/layout/Layout';
+import { Layout } from '@/components/layout/Layout';
 
 // Pages
 import { Login } from '@/pages/Login';
@@ -21,56 +21,6 @@ import { Reports } from '@/pages/Reports';
 import { AuditLogs } from '@/pages/AuditLogs';
 import { Settings } from '@/pages/Settings';
 
-// Global Modals
-import { NewSaleModal } from '@/components/modals/NewSaleModal';
-import { PaymentModal } from '@/components/modals/PaymentModal';
-import { StockEntryModal } from '@/components/modals/StockEntryModal';
-
-const GlobalModalContainer: React.FC = () => {
-  const ctx = useOutletContext<any>();
-  if (!ctx) return null;
-
-  return (
-    <>
-      <NewSaleModal
-        isOpen={ctx.newSaleOpen || false}
-        onClose={() => ctx.setNewSaleOpen(false)}
-        onSuccess={() => {
-          // Trigger page refresh if needed
-          window.dispatchEvent(new Event('refresh-data'));
-        }}
-      />
-
-      <PaymentModal
-        isOpen={ctx.paymentOpen || false}
-        defaultCustomerId={ctx.paymentCustomerId}
-        onClose={() => ctx.setPaymentOpen(false)}
-        onSuccess={() => {
-          window.dispatchEvent(new Event('refresh-data'));
-        }}
-      />
-
-      <StockEntryModal
-        isOpen={ctx.stockEntryOpen || false}
-        defaultProductId={ctx.stockProductId}
-        onClose={() => ctx.setStockEntryOpen(false)}
-        onSuccess={() => {
-          window.dispatchEvent(new Event('refresh-data'));
-        }}
-      />
-    </>
-  );
-};
-
-const ProtectedLayoutWrapper: React.FC = () => {
-  return (
-    <>
-      <Layout />
-      <GlobalModalContainer />
-    </>
-  );
-};
-
 export const App: React.FC = () => {
   return (
     <AuthProvider>
@@ -81,7 +31,7 @@ export const App: React.FC = () => {
 
             {/* Protected Application Routes */}
             <Route element={<ProtectedRoute />}>
-              <Route element={<ProtectedLayoutWrapper />}>
+              <Route element={<Layout />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/sales" element={<Sales />} />
                 <Route path="/products" element={<Products />} />

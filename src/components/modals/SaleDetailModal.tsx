@@ -1,8 +1,17 @@
 import React, { useEffect, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { useToast } from '@/context/ToastContext';
 import { formatCurrency, formatDateTime, formatDate } from '@/utils/formatters';
-import { Sale, SaleItem, PaymentSchedule } from '@/types/database.types';
-import { X, ShoppingCart, Calendar, User, DollarSign, Loader2, FileText, CheckCircle, Clock } from 'lucide-react';
+import { Sale, SaleItem, PaymentSchedule, Customer } from '@/types/database.types';
+import { LayoutContextType } from '@/components/layout/Layout';
+import {
+  normalizeTurkishPhone,
+  buildSaleWhatsAppMessage,
+  openWhatsAppWeb,
+  logWhatsAppShareAttempt,
+} from '@/services/whatsappService';
+import { X, ShoppingCart, Calendar, User, DollarSign, Loader2, FileText, CheckCircle, Clock, Send, Printer } from 'lucide-react';
 
 interface SaleDetailModalProps {
   isOpen: boolean;
@@ -15,8 +24,12 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
   onClose,
   saleId,
 }) => {
+  const { showError, showSuccess } = useToast();
+  const { openSaleDocumentModal } = useOutletContext<LayoutContextType>();
+
   const [loading, setLoading] = useState(false);
   const [sale, setSale] = useState<Sale | null>(null);
+  const [customer, setCustomer] = useState<Customer | null>(null);
   const [items, setItems] = useState<SaleItem[]>([]);
   const [schedules, setSchedules] = useState<PaymentSchedule[]>([]);
 
@@ -31,6 +44,15 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
             .select('*')
             .eq('id', saleId)
             .single();
+
+          if (sData?.customer_id) {
+            const { data: cData } = await supabase
+              .from('customers')
+              .select('*')
+              .eq('id', sData.customer_id)
+              .maybeSingle();
+            setCustomer(cData as Customer);
+          }
 
           // 2. Sale Items
           const { data: iData } = await supabase
@@ -61,6 +83,31 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
   }, [isOpen, saleId]);
 
   if (!isOpen || !saleId) return null;
+
+  const handleDirectWhatsApp = async () => {
+    if (!sale) return;
+
+    const phoneToUse = customer?.phone || '';
+    const norm = normalizeTurkishPhone(phoneToUse);
+
+    if (!norm.isValid) {
+      showError('Müşterinin geçerli bir telefon numarası bulunmuyor.');
+      return;
+    }
+
+    try {
+      const msg = buildSaleWhatsAppMessage(sale, items, schedules);
+      await logWhatsAppShareAttempt('sales', sale.id, norm.normalized, {
+        sale_number: sale.sale_number,
+        customer_name: sale.customer_name,
+      });
+
+      openWhatsAppWeb(norm.normalized, msg);
+      showSuccess('WhatsApp gönderimi başlatıldı.');
+    } catch (err: any) {
+      showError(err.message || 'WhatsApp başlatılırken hata oluştu.');
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
@@ -95,6 +142,25 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
           </div>
         ) : (
           <div className="p-4 sm:p-6 overflow-y-auto space-y-6 custom-scrollbar">
+            {/* Quick Action Document Buttons */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                onClick={() => openSaleDocumentModal(sale.id)}
+                className="py-3 px-4 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md active:scale-98"
+              >
+                <FileText className="w-4 h-4" />
+                <span>📄 SATIŞ BELGESİNİ GÖR & YAZDIR</span>
+              </button>
+
+              <button
+                onClick={handleDirectWhatsApp}
+                className="py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-98"
+              >
+                <Send className="w-4 h-4" />
+                <span>📱 WHATSAPP'TAN GÖNDER</span>
+              </button>
+            </div>
+
             {/* Customer & Status Banner */}
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
               <div>
@@ -122,22 +188,18 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
             </div>
 
             {/* Financial Snapshots */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
                 <span className="text-slate-400 text-[11px] block">Toplam Satış Tutarı</span>
                 <span className="text-base font-extrabold text-white block mt-0.5">{formatCurrency(sale.total_amount)}</span>
               </div>
               <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
-                <span className="text-slate-400 text-[11px] block">Alış Maliyeti</span>
-                <span className="text-base font-bold text-slate-300 block mt-0.5">{formatCurrency(sale.total_cost)}</span>
+                <span className="text-slate-400 text-[11px] block">Tahsil Edilen</span>
+                <span className="text-base font-bold text-emerald-400 block mt-0.5">{formatCurrency(sale.paid_amount || 0)}</span>
               </div>
-              <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
-                <span className="text-slate-400 text-[11px] block">Hesaplanan Kâr</span>
-                <span className="text-base font-extrabold text-emerald-400 block mt-0.5">{formatCurrency(sale.total_profit)}</span>
-              </div>
-              <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
+              <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60 col-span-2 sm:col-span-1">
                 <span className="text-slate-400 text-[11px] block">Kalan Borç</span>
-                <span className="text-base font-extrabold text-amber-400 block mt-0.5">{formatCurrency(sale.remaining_debt)}</span>
+                <span className="text-base font-extrabold text-amber-400 block mt-0.5">{formatCurrency(sale.remaining_debt || 0)}</span>
               </div>
             </div>
 
@@ -150,10 +212,8 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                     <tr>
                       <th className="p-3">Ürün Adı</th>
                       <th className="p-3 w-20 text-center">Miktar</th>
-                      <th className="p-3 w-28 text-right">Alış Snapshot</th>
-                      <th className="p-3 w-28 text-right">Satış Snapshot</th>
-                      <th className="p-3 w-28 text-right">Toplam Tutar</th>
-                      <th className="p-3 w-28 text-right">Kâr</th>
+                      <th className="p-3 w-32 text-right">Birim Satış Snapshot</th>
+                      <th className="p-3 w-32 text-right">Toplam Tutar</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 text-slate-200">
@@ -161,10 +221,8 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                       <tr key={it.id}>
                         <td className="p-3 font-semibold text-white">{it.product_name}</td>
                         <td className="p-3 text-center font-bold">{it.quantity} {it.unit}</td>
-                        <td className="p-3 text-right text-slate-400">{formatCurrency(it.purchase_price_snapshot)}</td>
                         <td className="p-3 text-right text-slate-100 font-medium">{formatCurrency(it.sale_price_snapshot)}</td>
                         <td className="p-3 text-right font-extrabold text-white">{formatCurrency(it.total_amount)}</td>
-                        <td className="p-3 text-right font-bold text-emerald-400">{formatCurrency(it.total_profit)}</td>
                       </tr>
                     ))}
                   </tbody>

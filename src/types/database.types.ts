@@ -2,13 +2,15 @@ export type ProductUnit = 'Adet' | 'Kutu' | 'Paket' | 'Koli' | 'Çuval' | 'Kg' |
 
 export type MovementType = 'PURCHASE' | 'SALE' | 'RETURN' | 'ADJUSTMENT' | 'DAMAGE' | 'INITIAL';
 
-export type PaymentMethod = 'Nakit' | 'Havale/EFT' | 'Diğer';
+export type PaymentMethod = 'Nakit' | 'Havale/EFT' | 'Diğer' | 'Tedarikçiye Mahsup';
 
 export type PaymentType = 'pesin' | 'vadeli';
 
 export type ScheduleStatus = 'pending' | 'partially_paid' | 'paid' | 'overdue';
 
 export type LedgerType = 'BORÇ' | 'ÖDEME' | 'İADE' | 'DÜZELTME';
+
+export type SupplierLedgerMovementType = 'PURCHASE' | 'PAYMENT' | 'OFFSET' | 'ADJUSTMENT' | 'RETURN';
 
 export interface Profile {
   id: string;
@@ -36,6 +38,23 @@ export interface Supplier {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+}
+
+export interface SupplierLedger {
+  id: string;
+  owner_id: string;
+  supplier_id: string;
+  movement_type: SupplierLedgerMovementType;
+  description: string;
+  debit: number;   // Borç kapama / Mahsup (Borcu Azaltır)
+  credit: number;  // Vadeli Alım (Borcu Artırır)
+  balance: number; // Güncel Borç Bakiyesi
+  reference_id: string | null;
+  created_at: string;
+  deleted_at: string | null;
+  suppliers?: {
+    company_name: string;
+  };
 }
 
 export interface Product {
@@ -150,12 +169,20 @@ export interface Payment {
   id: string;
   owner_id: string;
   customer_id: string;
+  supplier_id: string | null;
   amount: number;
   payment_method: PaymentMethod;
+  payment_type?: string;
   payment_date: string;
   notes: string | null;
   created_at: string;
   deleted_at: string | null;
+  customers?: {
+    business_name: string;
+  };
+  suppliers?: {
+    company_name: string;
+  };
 }
 
 export interface PaymentSchedule {
@@ -215,4 +242,12 @@ export interface DashboardStats {
   todayCollections: number;
   todayProfit: number;
   todaySaleCount: number;
+
+  // Supplier Metrics
+  totalSupplierDebt: number;
+  monthlySupplierPurchase: number;
+  monthlySupplierOffset: number;
+  cashCollections: number;
+  bankCollections: number;
+  offsetCollections: number;
 }

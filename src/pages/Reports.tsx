@@ -13,10 +13,11 @@ import {
   Users,
   Boxes,
   FileSpreadsheet,
+  Truck,
 } from 'lucide-react';
 
 type DatePreset = 'TODAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'LAST_MONTH' | 'CUSTOM';
-type ReportTab = 'SALES' | 'PRODUCT_SALES' | 'CUSTOMER_SALES' | 'PROFIT' | 'COLLECTION' | 'STOCK';
+type ReportTab = 'SALES' | 'PRODUCT_SALES' | 'CUSTOMER_SALES' | 'PROFIT' | 'COLLECTION' | 'STOCK' | 'SUPPLIER';
 
 export const Reports: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -190,6 +191,24 @@ export const Reports: React.FC = () => {
 
         setReportData(list);
         setSummaryTotals({ totalAmount: totVal, totalCost: totCost, totalProfit: totVal - totCost, itemCount: list.length });
+      } else if (activeTab === 'SUPPLIER') {
+        const { data: supLogs } = await supabase
+          .from('supplier_ledger')
+          .select(`
+            *,
+            suppliers (company_name)
+          `)
+          .gte('created_at', sISO)
+          .lte('created_at', eISO)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false });
+
+        const list = supLogs || [];
+        const totPurch = list.reduce((acc, curr) => acc + Number(curr.credit || 0), 0);
+        const totOff = list.reduce((acc, curr) => acc + (curr.movement_type === 'OFFSET' ? Number(curr.debit || 0) : 0), 0);
+
+        setReportData(list);
+        setSummaryTotals({ totalAmount: totPurch, totalCost: totOff, totalProfit: totPurch - totOff, itemCount: list.length });
       }
     } catch (err) {
       console.error(err);
@@ -241,6 +260,7 @@ export const Reports: React.FC = () => {
           { id: 'PROFIT', label: 'Kâr Raporu', icon: DollarSign },
           { id: 'COLLECTION', label: 'Tahsilat Raporu', icon: Receipt },
           { id: 'STOCK', label: 'Stok Raporu', icon: Boxes },
+          { id: 'SUPPLIER', label: 'Tedarikçi & Mahsup', icon: Truck },
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -374,6 +394,15 @@ export const Reports: React.FC = () => {
                     <th className="p-4 text-center">Yöntem</th>
                     <th className="p-4 text-right">Tahsilat Tutarı</th>
                   </tr>
+                ) : activeTab === 'SUPPLIER' ? (
+                  <tr>
+                    <th className="p-4">Tarih</th>
+                    <th className="p-4">Tedarikçi Firma</th>
+                    <th className="p-4 text-center">İşlem Türü</th>
+                    <th className="p-4">Açıklama</th>
+                    <th className="p-4 text-right">Alacak (+) / Borç (-)</th>
+                    <th className="p-4 text-right">Bakiye (TL)</th>
+                  </tr>
                 ) : (
                   <tr>
                     <th className="p-4">Ürün Adı</th>
@@ -422,6 +451,33 @@ export const Reports: React.FC = () => {
                         <td className="p-4 font-bold text-white">{row.customers?.business_name || 'Müşteri'}</td>
                         <td className="p-4 text-center font-semibold text-emerald-400">{row.payment_method}</td>
                         <td className="p-4 text-right font-extrabold text-emerald-400">{formatCurrency(row.amount)}</td>
+                      </>
+                    ) : activeTab === 'SUPPLIER' ? (
+                      <>
+                        <td className="p-4 font-mono text-slate-400">{formatDate(row.created_at)}</td>
+                        <td className="p-4 font-bold text-white">{row.suppliers?.company_name || 'Tedarikçi'}</td>
+                        <td className="p-4 text-center font-bold">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] uppercase font-extrabold ${
+                              row.movement_type === 'PURCHASE'
+                                ? 'bg-amber-950 text-amber-300 border border-amber-800/40'
+                                : row.movement_type === 'OFFSET'
+                                ? 'bg-purple-950 text-purple-300 border border-purple-800/40'
+                                : 'bg-emerald-950 text-emerald-300 border border-emerald-800/40'
+                            }`}
+                          >
+                            {row.movement_type === 'PURCHASE' ? 'Mal Alımı' : row.movement_type === 'OFFSET' ? 'POS Mahsup' : row.movement_type}
+                          </span>
+                        </td>
+                        <td className="p-4 text-slate-300">{row.description}</td>
+                        <td className="p-4 text-right font-bold">
+                          {row.credit > 0 ? (
+                            <span className="text-amber-400">+{formatCurrency(row.credit)}</span>
+                          ) : (
+                            <span className="text-purple-400">-{formatCurrency(row.debit)}</span>
+                          )}
+                        </td>
+                        <td className="p-4 text-right font-extrabold text-white">{formatCurrency(row.balance)}</td>
                       </>
                     ) : (
                       <>

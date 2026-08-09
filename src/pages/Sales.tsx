@@ -5,10 +5,10 @@ import { formatCurrency, formatDateTime } from '@/utils/formatters';
 import { Sale } from '@/types/database.types';
 import { LayoutContextType } from '@/components/layout/Layout';
 import { SaleDetailModal } from '@/components/modals/SaleDetailModal';
-import { ShoppingCart, Search, Plus, Eye, Loader2, Calendar } from 'lucide-react';
+import { ShoppingCart, Search, Plus, Eye, Loader2, Calendar, FileText } from 'lucide-react';
 
 export const Sales: React.FC = () => {
-  const { openNewSaleModal } = useOutletContext<LayoutContextType>();
+  const { openNewSaleModal, openSaleDocumentModal } = useOutletContext<LayoutContextType>();
 
   const [loading, setLoading] = useState(true);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -39,6 +39,9 @@ export const Sales: React.FC = () => {
 
   useEffect(() => {
     fetchSales();
+    const handleRefresh = () => fetchSales();
+    window.addEventListener('refresh-data', handleRefresh);
+    return () => window.removeEventListener('refresh-data', handleRefresh);
   }, [fetchSales]);
 
   const filteredSales = sales.filter((s) => {
@@ -179,16 +182,26 @@ export const Sales: React.FC = () => {
                     </td>
 
                     <td className="p-4 text-right">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedSaleId(s.id);
-                          setDetailModalOpen(true);
-                        }}
-                        className="p-1.5 text-brand-400 hover:text-brand-300 hover:bg-brand-950/40 rounded-lg"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => openSaleDocumentModal(s.id)}
+                          className="px-2.5 py-1 text-xs font-semibold text-blue-300 bg-blue-950/60 hover:bg-blue-900/60 border border-blue-800/40 rounded-lg flex items-center gap-1 transition-all"
+                          title="Satış Belgesini Gör / Yazdır"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>Belge</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedSaleId(s.id);
+                            setDetailModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg"
+                          title="Detayları İncele"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

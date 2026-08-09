@@ -161,13 +161,15 @@ export const Ledger: React.FC = () => {
 
                     <td className="p-4 text-center font-bold">
                       <span
-                        className={`inline-block px-2.5 py-0.5 rounded text-[10px] uppercase ${
+                        className={`inline-block px-2.5 py-0.5 rounded text-[10px] uppercase font-extrabold ${
                           l.movement_type === 'BORÇ'
                             ? 'bg-amber-950 text-amber-300 border border-amber-800/50'
+                            : l.description.includes('Mahsup')
+                            ? 'bg-purple-950 text-purple-300 border border-purple-800/50'
                             : 'bg-emerald-950 text-emerald-300 border border-emerald-800/50'
                         }`}
                       >
-                        {l.movement_type}
+                        {l.description.includes('Mahsup') ? 'MAHSUP' : l.movement_type}
                       </span>
                     </td>
 

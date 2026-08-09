@@ -147,6 +147,9 @@ export const Collections: React.FC = () => {
 
   useEffect(() => {
     fetchCollectionsData();
+    const handleRefresh = () => fetchCollectionsData();
+    window.addEventListener('refresh-data', handleRefresh);
+    return () => window.removeEventListener('refresh-data', handleRefresh);
   }, [fetchCollectionsData]);
 
   const filtered = summaries.filter((s) => {
