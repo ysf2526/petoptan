@@ -17,6 +17,7 @@ import {
   FileText,
   Clock,
   Package,
+  Calendar,
 } from 'lucide-react';
 
 interface SaleDocumentModalProps {
