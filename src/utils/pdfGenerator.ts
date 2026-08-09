@@ -2,8 +2,8 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 /**
- * Genuine PDF / Document Generator & Web Share Helper
- * Generates REAL binary PDF files (application/pdf) with .pdf extension.
+ * Strict Single-Page PDF / Document Generator & Web Share Helper
+ * Generates REAL binary PDF files (application/pdf) strictly fitted to 1 Single A4 Page.
  */
 
 /**
@@ -21,8 +21,8 @@ export function downloadFile(file: File | Blob, filename: string) {
 }
 
 /**
- * Renders an HTML Element into a genuine PDF Binary File (application/pdf).
- * Uses html2canvas for crisp mobile rendering and jsPDF for standard PDF binary compilation (%PDF-1.4...).
+ * Renders an HTML Element into a genuine PDF Binary File (application/pdf)
+ * STRICTLY FITTED TO 1 SINGLE A4 PAGE (210mm x 297mm).
  */
 export async function createPdfFileFromElement(element: HTMLElement, filename: string): Promise<File> {
   const baseFilename = filename.replace(/\.(html|pdf)$/i, '');
@@ -30,7 +30,7 @@ export async function createPdfFileFromElement(element: HTMLElement, filename: s
 
   // 1. Render DOM element to high-res canvas
   const canvas = await html2canvas(element, {
-    scale: 2, // High resolution for crisp mobile text rendering
+    scale: 2, // High resolution for crisp text rendering
     useCORS: true,
     logging: false,
     backgroundColor: '#020617', // Match dark theme background
@@ -38,31 +38,31 @@ export async function createPdfFileFromElement(element: HTMLElement, filename: s
 
   const imgData = canvas.toDataURL('image/jpeg', 0.95);
 
-  // 2. Create A4 jsPDF instance
+  // 2. Create A4 jsPDF instance (210mm x 297mm)
   const pdf = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4',
   });
 
-  const pdfWidth = pdf.internal.pageSize.getWidth();
-  const pdfHeight = pdf.internal.pageSize.getHeight();
+  const pdfWidth = pdf.internal.pageSize.getWidth(); // 210 mm
+  const pdfHeight = pdf.internal.pageSize.getHeight(); // 297 mm
 
-  const imgWidth = pdfWidth;
-  const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+  let imgWidth = pdfWidth;
+  let imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
-  let heightLeft = imgHeight;
-  let position = 0;
-
-  pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-  heightLeft -= pdfHeight;
-
-  while (heightLeft > 5) {
-    position = heightLeft - imgHeight;
-    pdf.addPage();
-    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pdfHeight;
+  // FIT TO 1 SINGLE A4 PAGE GUARANTEE:
+  // If image height exceeds A4 height (297 mm), scale down proportionally so it fits on EXACTLY 1 page!
+  if (imgHeight > pdfHeight) {
+    const scaleFactor = pdfHeight / imgHeight;
+    imgHeight = pdfHeight;
+    imgWidth = pdfWidth * scaleFactor;
   }
+
+  // Center horizontally if scaled down
+  const xOffset = (pdfWidth - imgWidth) / 2;
+
+  pdf.addImage(imgData, 'JPEG', xOffset, 0, imgWidth, imgHeight);
 
   // 3. Output genuine PDF ArrayBuffer & Blob
   const pdfArrayBuffer = pdf.output('arraybuffer');
@@ -80,7 +80,7 @@ export async function createPdfFileFromElement(element: HTMLElement, filename: s
 }
 
 /**
- * Attempts to share genuine PDF document via native Web Share API (Mobile Safari/Chrome)
+ * Attempts to share genuine 1-page PDF document via native Web Share API (Mobile Safari/Chrome)
  * If unsupported (Desktop Chrome), falls back to downloading the PDF file + opening WhatsApp Web deep link.
  */
 export async function shareOrDownloadWhatsAppDocument(
@@ -93,7 +93,7 @@ export async function shareOrDownloadWhatsAppDocument(
     throw new Error('PDF render edilmek üzere belge elemanı bulunamadı.');
   }
 
-  // Generate genuine PDF file
+  // Generate genuine single-page PDF file
   const pdfFile = await createPdfFileFromElement(element, documentFilename);
 
   // Runtime check
