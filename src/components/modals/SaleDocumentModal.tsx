@@ -18,6 +18,17 @@ import {
   Clock,
   Package,
   Calendar,
+  Phone,
+  MessageCircle,
+  Mail,
+  User,
+  ShoppingBag,
+  ShoppingCart,
+  Wallet,
+  AlertTriangle,
+  MapPin,
+  Globe,
+  Tag,
 } from 'lucide-react';
 
 interface SaleDocumentModalProps {
@@ -133,7 +144,7 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
       );
 
       if (method === 'whatsapp_web_download') {
-        showSuccess('Belge tek sayfa PDF olarak cihazınıza indirildi! WhatsApp sohbetine dosya olarak ekleyebilirsiniz.');
+        showSuccess('Belge PDF olarak cihazınıza indirildi! WhatsApp sohbetine dosya olarak ekleyebilirsiniz.');
       } else {
         showSuccess('WhatsApp PDF paylaşımı başlatıldı.');
       }
@@ -146,13 +157,15 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
     window.print();
   };
 
-  const businessTitle = profile?.business_name?.trim() || 'TOPTAN PET DÜNYASI';
+  const businessTitle = profile?.business_name?.trim() || 'PETSHOP TOPTAN';
+  const businessPhone = profile?.phone?.trim() || '0532 000 00 00';
+  const businessAddress = profile?.address?.trim() || 'Toptan Güven, Hızlı Tedarik';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md" onClick={onClose} />
 
-      <div className="relative bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl shadow-2xl z-10 overflow-hidden flex flex-col my-auto max-h-[95vh]">
+      <div className="relative bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl z-10 overflow-hidden flex flex-col my-auto max-h-[95vh]">
         {/* Top Control Bar (Hidden on Print) */}
         <div className="p-3 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-900 print:hidden">
           <div className="flex items-center gap-2.5">
@@ -161,7 +174,7 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
             </div>
             <div>
               <h2 className="text-xs sm:text-sm font-bold text-white">
-                Tek Sayfa Satış Belgesi (PDF)
+                Satış ve Ödeme Planı Belgesi (PDF)
               </h2>
               <p className="text-[11px] text-slate-400">#{sale?.sale_number}</p>
             </div>
@@ -190,223 +203,293 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
           </div>
         </div>
 
-        {/* SINGLE-PAGE STRICT A4 PRINTABLE CONTAINER AREA */}
+        {/* EXACT SAMPLE REPLICATION PRINTABLE CONTAINER */}
         <div className="p-2 sm:p-5 overflow-y-auto custom-scrollbar bg-slate-950 text-slate-100 flex-1">
           {loading || !sale ? (
-            <div className="p-10 text-center text-slate-400 flex flex-col items-center">
-              <Loader2 className="w-7 h-7 animate-spin text-brand-500 mb-2" />
-              <span>1 Sayfa PDF Hazırlanıyor...</span>
+            <div className="p-12 text-center text-slate-400 flex flex-col items-center">
+              <Loader2 className="w-8 h-8 animate-spin text-brand-500 mb-2" />
+              <span>Birebir PDF Şablonu Yükleniyor...</span>
             </div>
           ) : (
             <div
               id="printable-sale-document"
-              className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl max-w-xl mx-auto space-y-3 text-[10px] shadow-2xl print:bg-white print:text-black print:p-0 print:border-none print:shadow-none"
+              className="bg-white text-slate-900 font-sans p-7 rounded-2xl shadow-xl w-full max-w-[800px] aspect-[1/1.414] mx-auto space-y-4 print:p-0 print:border-none print:shadow-none"
             >
-              {/* Official Invoice Disclaimer Bar */}
-              <div className="bg-amber-950/60 border border-amber-800/40 py-1.5 px-3 rounded-lg text-center text-amber-300 font-medium text-[9px] print:bg-amber-50 print:text-amber-900 print:border-amber-300">
-                ⚠️ BU BELGE RESMİ FATURA YERİNE GEÇMEZ. CARİ HESAP BİLGİLENDİRME AMACIYLA HAZIRLANMIŞTIR.
-              </div>
-
-              {/* 1. Compact Header: Dynamic Business Name & Sale Metadata */}
-              <div className="flex flex-row items-center justify-between border-b border-slate-800/80 pb-2.5 print:border-slate-300">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-base print:border-blue-700 print:text-blue-900">
+              {/* 1. Header Section */}
+              <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 text-3xl shadow-sm shrink-0">
                     🐾
                   </div>
                   <div>
-                    <h1 className="text-sm font-black text-white uppercase tracking-tight print:text-black leading-tight">
+                    <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-tight">
                       {businessTitle}
                     </h1>
-                    <div className="text-[9px] text-slate-400 font-medium print:text-slate-600 flex items-center gap-2 mt-0.5">
-                      {profile?.phone && <span>Tel: {profile.phone}</span>}
-                      {profile?.address && <span>• {profile.address}</span>}
+                    <p className="text-xs font-semibold text-blue-600 mt-0.5">
+                      Toptan Pet Ürünleri & Cari Yönetimi
+                    </p>
+                    <div className="mt-2 space-y-0.5 text-[11px] text-slate-500 font-medium">
+                      <div className="flex items-center gap-1.5">
+                        <Phone className="w-3 h-3 text-blue-500" />
+                        <span>{businessPhone}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <MessageCircle className="w-3 h-3 text-emerald-500" />
+                        <span>{businessPhone}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Mail className="w-3 h-3 text-slate-400" />
+                        <span>info@petoptan.com</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-right print:bg-slate-50 print:border-slate-300">
-                  <h2 className="font-black text-blue-400 text-[11px] tracking-wide uppercase print:text-blue-900">
-                    SATIŞ BELGESİ
+                <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-3.5 space-y-1.5 text-xs text-right min-w-[240px]">
+                  <h2 className="font-extrabold text-slate-900 tracking-wide text-xs uppercase">
+                    SATIŞ VE ÖDEME PLANI BELGESİ
                   </h2>
-                  <div className="text-[9px] text-slate-300 font-mono mt-0.5 print:text-slate-800 space-x-1.5">
-                    <span>Satış No: <strong className="text-white print:text-black">{sale.sale_number}</strong></span>
-                    <span>• Tarih: <strong className="text-white print:text-black">{formatDate(sale.created_at)}</strong></span>
+                  <div className="space-y-1 text-[11px] text-slate-600 pt-1 border-t border-slate-200/60">
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-500">Satış No</span>
+                      <span className="font-bold text-blue-600 font-mono">: {sale.sale_number}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-500">Tarih</span>
+                      <span className="font-semibold text-slate-800 font-mono">: {formatDate(sale.created_at)}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-500">Vade Tipi</span>
+                      <span className="font-semibold text-slate-800">: {sale.payment_type === 'pesin' ? 'Peşin Satış' : `Vadeli (${sale.term_days || 30} Gün / Haftalık)`}</span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* 2. Customer Info & Top 3 Summary Strip */}
-              <div className="grid grid-cols-12 gap-2 items-stretch">
+              {/* 2. Customer Info Card & 3 Summary Badges */}
+              <div className="grid grid-cols-12 gap-3">
                 {/* Customer Details */}
-                <div className="col-span-6 bg-slate-950 p-2.5 rounded-xl border border-slate-800 print:bg-slate-50 print:border-slate-300 flex flex-col justify-between">
+                <div className="col-span-5 bg-blue-50/40 border border-blue-100 rounded-xl p-3.5 flex items-center justify-between">
                   <div>
-                    <span className="text-slate-400 font-bold uppercase text-[8px] tracking-wider block print:text-slate-600">
-                      🐾 MÜŞTERİ BİLGİLERİ
-                    </span>
-                    <div className="text-[11px] font-extrabold text-white print:text-black leading-snug">
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-blue-600 uppercase tracking-wider">
+                      <User className="w-3 h-3" />
+                      <span>MÜŞTERİ BİLGİLERİ</span>
+                    </div>
+                    <div className="text-sm font-extrabold text-slate-900 mt-1 leading-snug">
                       {sale.customer_name}
                     </div>
+                    <div className="text-xs text-slate-600 font-medium mt-1 space-y-0.5">
+                      {(customer?.contact_name || customer?.contact_person) && (
+                        <div>Yetkili: <strong className="text-slate-800">{customer?.contact_name || customer?.contact_person}</strong></div>
+                      )}
+                      {customer?.phone && (
+                        <div>Telefon: <strong className="font-mono text-slate-800">{customer.phone}</strong></div>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-[9px] text-slate-300 print:text-slate-700 mt-0.5 flex flex-wrap gap-x-2">
-                    {(customer?.contact_name || customer?.contact_person) && (
-                      <span>Yetkili: <strong>{customer?.contact_name || customer?.contact_person}</strong></span>
-                    )}
-                    {customer?.phone && <span>Tel: <strong className="font-mono">{customer.phone}</strong></span>}
+
+                  <div className="w-11 h-11 rounded-full bg-blue-100/80 text-blue-600 flex items-center justify-center shrink-0">
+                    <ShoppingBag className="w-5.5 h-5.5" />
                   </div>
                 </div>
 
-                {/* 3 Summary Badges */}
-                <div className="col-span-6 grid grid-cols-3 gap-1.5">
-                  <div className="bg-slate-950 p-2 rounded-xl border border-slate-800 text-center flex flex-col justify-center print:bg-slate-50 print:border-slate-300">
-                    <span className="text-slate-400 text-[8px] font-bold uppercase block print:text-slate-600">
+                {/* 3 Summary Cards */}
+                <div className="col-span-7 grid grid-cols-3 gap-2">
+                  <div className="bg-blue-50/60 border border-blue-100 p-3 rounded-xl text-center flex flex-col justify-center">
+                    <ShoppingCart className="w-5 h-5 text-blue-500 mx-auto mb-1" />
+                    <span className="text-[9px] font-bold text-slate-600 uppercase">
                       TOPLAM SATIŞ
                     </span>
-                    <span className="text-[11px] font-black text-white block mt-0.5 print:text-black">
+                    <span className="text-sm font-black text-blue-600 mt-1">
                       {formatCurrency(sale.total_amount)}
                     </span>
                   </div>
 
-                  <div className="bg-slate-950 p-2 rounded-xl border border-slate-800 text-center flex flex-col justify-center print:bg-slate-50 print:border-slate-300">
-                    <span className="text-slate-400 text-[8px] font-bold uppercase block print:text-slate-600">
-                      ÖDENEN
+                  <div className="bg-emerald-50/60 border border-emerald-100 p-3 rounded-xl text-center flex flex-col justify-center">
+                    <Wallet className="w-5 h-5 text-emerald-500 mx-auto mb-1" />
+                    <span className="text-[9px] font-bold text-slate-600 uppercase">
+                      TOPLAM ÖDENEN
                     </span>
-                    <span className="text-[11px] font-black text-emerald-400 block mt-0.5 print:text-emerald-700">
+                    <span className="text-sm font-black text-emerald-600 mt-1">
                       {formatCurrency(sale.paid_amount || 0)}
                     </span>
                   </div>
 
-                  <div className="bg-slate-950 p-2 rounded-xl border border-amber-500/50 text-center flex flex-col justify-center print:bg-slate-50 print:border-amber-400">
-                    <span className="text-amber-400 text-[8px] font-extrabold uppercase block print:text-amber-800">
+                  <div className="bg-amber-50/60 border border-amber-100 p-3 rounded-xl text-center flex flex-col justify-center">
+                    <FileText className="w-5 h-5 text-amber-500 mx-auto mb-1" />
+                    <span className="text-[9px] font-bold text-amber-800 uppercase">
                       KALAN BORÇ
                     </span>
-                    <span className="text-[11px] font-black text-amber-400 block mt-0.5 print:text-amber-800">
+                    <span className="text-sm font-black text-amber-600 mt-1">
                       {formatCurrency(sale.remaining_debt || 0)}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* 3. Compact Products Table */}
+              {/* 3. Products Table */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-[9px] font-bold text-slate-300 uppercase tracking-wider print:text-black flex items-center gap-1">
-                    <Package className="w-3 h-3 text-blue-400" />
-                    <span>SATIN ALINAN ÜRÜNLER ({items.length})</span>
-                  </h3>
+                <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <Package className="w-4 h-4 text-blue-600" />
+                  <span>SATIN ALINAN ÜRÜNLER</span>
                 </div>
 
-                <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950 print:border-slate-300 print:bg-white">
-                  <table className="w-full text-left text-[10px]">
-                    <thead className="bg-slate-900 text-slate-400 uppercase border-b border-slate-800 font-semibold print:bg-slate-100 print:text-slate-900 print:border-slate-300 text-[8px]">
+                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-blue-600 text-white font-bold text-[11px] uppercase border-b border-blue-700">
                       <tr>
-                        <th className="py-1.5 px-2.5">Ürün Adı</th>
-                        <th className="py-1.5 px-2 text-center">Miktar</th>
-                        <th className="py-1.5 px-2 text-center">Birim</th>
-                        <th className="py-1.5 px-2.5 text-right">Birim Fiyat</th>
-                        <th className="py-1.5 px-2.5 text-right">Toplam</th>
+                        <th className="py-2.5 px-3">Ürün Adı</th>
+                        <th className="py-2.5 px-2 text-center">Miktar</th>
+                        <th className="py-2.5 px-2 text-center">Birim</th>
+                        <th className="py-2.5 px-3 text-right">Birim Fiyat</th>
+                        <th className="py-2.5 px-3 text-right">Toplam</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/80 text-slate-200 print:divide-slate-200 print:text-black">
+                    <tbody className="divide-y divide-slate-100 text-slate-800">
                       {items.map((it) => (
                         <tr key={it.id}>
-                          <td className="py-1.5 px-2.5 font-semibold text-white print:text-black">
-                            {it.product_name}
-                          </td>
-                          <td className="py-1.5 px-2 text-center font-bold">{it.quantity}</td>
-                          <td className="py-1.5 px-2 text-center font-medium text-slate-400 print:text-slate-700">{it.unit}</td>
-                          <td className="py-1.5 px-2.5 text-right font-medium">{formatCurrency(it.sale_price_snapshot)}</td>
-                          <td className="py-1.5 px-2.5 text-right font-extrabold text-white print:text-black">
-                            {formatCurrency(it.total_amount)}
-                          </td>
+                          <td className="py-2.5 px-3 font-semibold text-slate-900">{it.product_name}</td>
+                          <td className="py-2.5 px-2 text-center font-bold">{it.quantity}</td>
+                          <td className="py-2.5 px-2 text-center text-slate-600">{it.unit}</td>
+                          <td className="py-2.5 px-3 text-right font-medium">{formatCurrency(it.sale_price_snapshot)}</td>
+                          <td className="py-2.5 px-3 text-right font-extrabold text-slate-900">{formatCurrency(it.total_amount)}</td>
                         </tr>
                       ))}
                     </tbody>
+                    <tfoot className="bg-slate-50 font-bold border-t border-slate-200 text-xs">
+                      <tr>
+                        <td colSpan={4} className="py-2.5 px-3 text-right font-bold text-slate-900">Ürün Toplamı</td>
+                        <td className="py-2.5 px-3 text-right font-black text-slate-900 text-sm">{formatCurrency(sale.total_amount)}</td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </div>
 
-              {/* 4. Compact 4-Week Payment Plan Table */}
+              {/* 4. Weekly Payment Schedule (4 Cards Grid with Dotted Line) */}
               <div>
-                <h3 className="text-[9px] font-bold text-slate-300 uppercase tracking-wider mb-1 print:text-black flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-amber-400" />
-                  <span>HAFTALIK ÖDEME PLANISI & VADE TAKVİMİ ({schedules.length} TAKSİT)</span>
-                </h3>
+                <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-blue-600" />
+                  <span>HAFTALIK ÖDEME PLANI ({schedules.length || 4} TAKSİT)</span>
+                </div>
 
                 {schedules.length === 0 ? (
-                  <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-400 italic text-center text-[9px] print:bg-slate-50 print:border-slate-300">
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-500 italic text-center text-xs">
                     Peşin Satış — Haftalık taksit planı bulunmamaktadır.
                   </div>
                 ) : (
-                  <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950 print:border-slate-300 print:bg-white">
-                    <table className="w-full text-left text-[10px]">
-                      <thead className="bg-slate-900 text-slate-400 uppercase border-b border-slate-800 font-semibold print:bg-slate-100 print:text-slate-900 print:border-slate-300 text-[8px]">
-                        <tr>
-                          <th className="py-1 px-2.5">Taksit #</th>
-                          <th className="py-1 px-2.5">Vade Tarihi</th>
-                          <th className="py-1 px-2.5 text-right">Taksit Tutarı</th>
-                          <th className="py-1 px-2.5 text-right">Ödenen</th>
-                          <th className="py-1 px-2.5 text-center">Durum</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/80 text-slate-200 print:divide-slate-200 print:text-black">
-                        {schedules.map((s, idx) => (
-                          <tr key={s.id}>
-                            <td className="py-1 px-2.5 font-bold text-white print:text-black">
-                              {idx + 1}. HAFTA
-                            </td>
-                            <td className="py-1 px-2.5 font-mono font-semibold text-slate-300 print:text-slate-800">
-                              {formatDate(s.due_date)}
-                            </td>
-                            <td className="py-1 px-2.5 text-right font-bold text-white print:text-black">
-                              {formatCurrency(s.amount)}
-                            </td>
-                            <td className="py-1 px-2.5 text-right font-bold text-emerald-400 print:text-emerald-700">
-                              {formatCurrency(s.paid_amount || 0)}
-                            </td>
-                            <td className="py-1 px-2.5 text-center">
-                              <span
-                                className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase ${
-                                  s.status === 'paid'
-                                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-800/50 print:bg-emerald-100 print:text-emerald-800'
-                                    : s.status === 'partially_paid'
-                                    ? 'bg-amber-950 text-amber-300 border border-amber-800/50 print:bg-amber-100 print:text-amber-800'
-                                    : s.status === 'overdue'
-                                    ? 'bg-rose-950 text-rose-300 border border-rose-800/50 print:bg-rose-100 print:text-rose-800'
-                                    : 'bg-slate-800 text-slate-300 border border-slate-700 print:bg-slate-200 print:text-slate-800'
-                                }`}
-                              >
-                                {s.status === 'paid' && '✓ ÖDENDİ'}
-                                {s.status === 'partially_paid' && '◐ KISMİ ÖDENDİ'}
-                                {s.status === 'overdue' && '⚠️ GECİKTİ'}
-                                {s.status === 'pending' && '○ BEKLİYOR'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="grid grid-cols-4 gap-2.5 relative">
+                    {/* Dotted connecting line */}
+                    <div className="absolute top-4 left-6 right-6 border-b-2 border-dashed border-slate-200 z-0" />
+
+                    {schedules.map((s, idx) => (
+                      <div
+                        key={s.id}
+                        className="relative z-10 bg-slate-50/70 border border-slate-200 p-3 rounded-xl text-center space-y-1.5 shadow-sm"
+                      >
+                        <div className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center mx-auto shadow-sm">
+                          {idx + 1}
+                        </div>
+
+                        <div className="font-extrabold text-slate-900 text-xs">{idx + 1}. HAFTA</div>
+                        <div className="text-[10px] font-mono text-slate-500 font-semibold flex items-center justify-center gap-1">
+                          <Calendar className="w-3 h-3 text-slate-400" />
+                          <span>{formatDate(s.due_date)}</span>
+                        </div>
+
+                        <div className="pt-1 border-t border-slate-200/60 space-y-0.5 text-[10px]">
+                          <span className="text-slate-500 block">Ödenecek Tutar</span>
+                          <span className="font-bold text-blue-600 text-xs block">{formatCurrency(s.amount)}</span>
+                        </div>
+
+                        <div className="space-y-0.5 text-[10px]">
+                          <span className="text-slate-500 block">Ödenen Tutar</span>
+                          <span className="font-bold text-emerald-600 text-xs block">{formatCurrency(s.paid_amount || 0)}</span>
+                        </div>
+
+                        <div className="pt-1">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${
+                              s.status === 'paid'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : s.status === 'partially_paid'
+                                ? 'bg-amber-100 text-amber-800'
+                                : s.status === 'overdue'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'text-amber-600 bg-amber-50 border border-amber-200'
+                            }`}
+                          >
+                            {s.status === 'paid' && '✓ ÖDENDİ'}
+                            {s.status === 'partially_paid' && '◐ KISMİ ÖDENDİ'}
+                            {s.status === 'overdue' && '⚠️ GECİKTİ'}
+                            {s.status === 'pending' && '○ BEKLİYOR'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
 
-              {/* 5. Compact Payment Term Summary Strip */}
-              <div className="bg-slate-950 border border-slate-800 p-2 rounded-xl flex items-center justify-between text-[9px] print:bg-slate-50 print:border-slate-300">
-                <div className="flex items-center gap-1 font-bold text-white print:text-black uppercase">
-                  <Clock className="w-3 h-3 text-blue-400 print:text-blue-700" />
-                  <span>30 GÜNLÜK VADE ÖZETİ</span>
+              {/* 5. 30 Days Term Summary Strip */}
+              <div className="bg-blue-50/40 border border-blue-100 p-3.5 rounded-xl flex items-center justify-between text-xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 text-sm">30 GÜNLÜK VADE</h4>
+                    <p className="text-[11px] text-slate-500 font-medium">4 Haftalık Ödeme Planı</p>
+                  </div>
                 </div>
 
-                <div className="font-semibold text-slate-300 print:text-black flex items-center gap-2.5">
-                  <span>Toplam: <strong className="text-white print:text-black">{formatCurrency(sale.total_amount)}</strong></span>
-                  <span>Ödenen: <strong className="text-emerald-400 print:text-emerald-700">{formatCurrency(sale.paid_amount || 0)}</strong></span>
-                  <span>Kalan: <strong className="text-amber-400 print:text-amber-800 font-black">{formatCurrency(sale.remaining_debt || 0)}</strong></span>
+                <div className="flex items-center gap-6 text-right">
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-medium block">Toplam Tutar</span>
+                    <span className="font-bold text-blue-600 text-sm">{formatCurrency(sale.total_amount)}</span>
+                  </div>
+
+                  <div className="border-l border-slate-200 pl-6">
+                    <span className="text-[10px] text-slate-500 font-medium block">Ödenen Tutar</span>
+                    <span className="font-bold text-emerald-600 text-sm">{formatCurrency(sale.paid_amount || 0)}</span>
+                  </div>
+
+                  <div className="border-l border-slate-200 pl-6">
+                    <span className="text-[10px] text-slate-500 font-medium block">Kalan Borç</span>
+                    <span className="font-black text-amber-600 text-sm">{formatCurrency(sale.remaining_debt || 0)}</span>
+                  </div>
                 </div>
               </div>
 
-              {/* 6. Compact Footer Legal Disclaimer */}
-              <div className="border-t border-slate-800/80 pt-1.5 text-center text-[8px] text-slate-500 font-medium space-y-0.5 print:border-slate-300 print:text-slate-600">
-                <p>Bu belge cari hesap ve ödeme planı bilgilendirme amacıyla otomatik olarak oluşturulmuştur.</p>
-                <p className="font-bold text-slate-400 print:text-black">RESMİ FATURA / E-ARŞİV FATURA YERİNE GEÇMEZ.</p>
+              {/* 6. Warning Disclaimer Box */}
+              <div className="bg-amber-50/80 border border-amber-200/80 p-3 rounded-xl flex items-center gap-3 text-xs">
+                <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 font-bold text-lg">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-slate-700 text-[11px] font-medium leading-snug">
+                    Bu belge cari hesap ve ödeme planı bilgilendirme amacıyla otomatik olarak oluşturulmuştur.
+                  </p>
+                  <p className="font-extrabold text-slate-900 text-[11px] mt-0.5">
+                    RESMİ FATURA / E-ARŞİV FATURA YERİNE GEÇMEZ.
+                  </p>
+                </div>
+              </div>
+
+              {/* 7. Footer Strip */}
+              <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold border-t border-slate-100 pt-3">
+                <div className="flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-slate-400" />
+                  <span>{businessTitle}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Globe className="w-3 h-3 text-slate-400" />
+                  <span>www.petoptan.com</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Tag className="w-3 h-3 text-slate-400" />
+                  <span>{businessAddress}</span>
+                </div>
               </div>
             </div>
           )}

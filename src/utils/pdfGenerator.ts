@@ -2,8 +2,8 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 /**
- * Strict Single-Page PDF / Document Generator & Web Share Helper
- * Generates REAL binary PDF files (application/pdf) strictly fitted to 1 Single A4 Page.
+ * Full A4 Width PDF Generator & Web Share Helper
+ * Generates REAL binary PDF files (application/pdf) covering 100% of standard A4 page dimensions (210mm x 297mm).
  */
 
 /**
@@ -22,23 +22,23 @@ export function downloadFile(file: File | Blob, filename: string) {
 
 /**
  * Renders an HTML Element into a genuine PDF Binary File (application/pdf)
- * STRICTLY FITTED TO 1 SINGLE A4 PAGE (210mm x 297mm).
+ * Filling 100% of the A4 page (210mm x 297mm) with zero side white margins (pillarboxing).
  */
 export async function createPdfFileFromElement(element: HTMLElement, filename: string): Promise<File> {
   const baseFilename = filename.replace(/\.(html|pdf)$/i, '');
   const pdfFilename = `${baseFilename}.pdf`;
 
-  // 1. Render DOM element to high-res canvas
+  // 1. Render DOM element to crisp high-res canvas
   const canvas = await html2canvas(element, {
     scale: 2, // High resolution for crisp text rendering
     useCORS: true,
     logging: false,
-    backgroundColor: '#020617', // Match dark theme background
+    backgroundColor: '#ffffff', // Clean white background
   });
 
-  const imgData = canvas.toDataURL('image/jpeg', 0.95);
+  const imgData = canvas.toDataURL('image/jpeg', 0.98);
 
-  // 2. Create A4 jsPDF instance (210mm x 297mm)
+  // 2. Create standard A4 jsPDF instance (210mm x 297mm)
   const pdf = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -48,21 +48,8 @@ export async function createPdfFileFromElement(element: HTMLElement, filename: s
   const pdfWidth = pdf.internal.pageSize.getWidth(); // 210 mm
   const pdfHeight = pdf.internal.pageSize.getHeight(); // 297 mm
 
-  let imgWidth = pdfWidth;
-  let imgHeight = (canvas.height * pdfWidth) / canvas.width;
-
-  // FIT TO 1 SINGLE A4 PAGE GUARANTEE:
-  // If image height exceeds A4 height (297 mm), scale down proportionally so it fits on EXACTLY 1 page!
-  if (imgHeight > pdfHeight) {
-    const scaleFactor = pdfHeight / imgHeight;
-    imgHeight = pdfHeight;
-    imgWidth = pdfWidth * scaleFactor;
-  }
-
-  // Center horizontally if scaled down
-  const xOffset = (pdfWidth - imgWidth) / 2;
-
-  pdf.addImage(imgData, 'JPEG', xOffset, 0, imgWidth, imgHeight);
+  // Stretch 100% to A4 page dimensions without side margins
+  pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
 
   // 3. Output genuine PDF ArrayBuffer & Blob
   const pdfArrayBuffer = pdf.output('arraybuffer');
@@ -80,7 +67,7 @@ export async function createPdfFileFromElement(element: HTMLElement, filename: s
 }
 
 /**
- * Attempts to share genuine 1-page PDF document via native Web Share API (Mobile Safari/Chrome)
+ * Attempts to share genuine PDF document via native Web Share API (Mobile Safari/Chrome)
  * If unsupported (Desktop Chrome), falls back to downloading the PDF file + opening WhatsApp Web deep link.
  */
 export async function shareOrDownloadWhatsAppDocument(
@@ -93,7 +80,7 @@ export async function shareOrDownloadWhatsAppDocument(
     throw new Error('PDF render edilmek üzere belge elemanı bulunamadı.');
   }
 
-  // Generate genuine single-page PDF file
+  // Generate genuine PDF file
   const pdfFile = await createPdfFileFromElement(element, documentFilename);
 
   // Runtime check
