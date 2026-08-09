@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^3.4.0",
     "@supabase/supabase-js": "^2.48.1",
     "clsx": "^2.1.1",
     "html2canvas": "^1.4.1",

@@ -151,21 +151,46 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
         type: 'customer_statement',
       });
 
-      const docElement = document.getElementById('printable-customer-statement');
-      const filename = `Cari_Ozet_${customer.business_name.replace(/\s+/g, '_')}.pdf`;
+      // Generate a mock sale object for statement pdf rendering
+      const mockSale: Sale = {
+        id: lastSale?.id || 'statement',
+        owner_id: customer.owner_id,
+        customer_id: customer.id,
+        customer_name: customer.business_name,
+        sale_number: `CARİ-${formatDate(new Date().toISOString()).replace(/\./g, '')}`,
+        total_amount: currentDebt,
+        paid_amount: 0,
+        remaining_debt: currentDebt,
+        payment_type: 'vadeli',
+        term_days: 30,
+        status: 'completed',
+        notes: 'Cari Hesap ve Vadeler Ekstresi',
+        created_at: new Date().toISOString(),
+      };
 
-      const { method } = await shareOrDownloadWhatsAppDocument(
-        docElement,
-        norm.normalized,
-        messageText,
-        filename
-      );
+      const pdfFile = await generateSalesPdfFile(mockSale, [], upcomingSchedules, customer, profile);
 
-      if (method === 'whatsapp_web_download') {
-        showSuccess('Cari hesap belgesi PDF olarak cihazınıza indirildi! WhatsApp sohbetine dosya olarak ekleyebilirsiniz.');
-      } else {
-        showSuccess('WhatsApp PDF paylaşımı başlatıldı.');
+      downloadPdfFile(pdfFile, pdfFile.name);
+
+      const nav = navigator as any;
+      if (nav.share && nav.canShare && nav.canShare({ files: [pdfFile] })) {
+        try {
+          await nav.share({
+            title: pdfFile.name,
+            text: messageText,
+            files: [pdfFile],
+          });
+          showSuccess('WhatsApp PDF paylaşımı başlatıldı.');
+          return;
+        } catch (err: any) {
+          if (err.name !== 'AbortError') console.warn(err);
+        }
       }
+
+      const digits = norm.normalized.replace(/\D/g, '');
+      const encodedText = encodeURIComponent(messageText);
+      window.open(`https://wa.me/${digits}?text=${encodedText}`, '_blank');
+      showSuccess('Cari hesap belgesi PDF olarak cihazınıza indirildi! WhatsApp sohbetine dosya olarak ekleyebilirsiniz.');
     } catch (err: any) {
       showError(err.message || 'WhatsApp açılırken bir hata oluştu.');
     }

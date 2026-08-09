@@ -128,28 +128,40 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
 
     try {
       const messageText = buildSaleWhatsAppMessage(sale, items, schedules);
-      const docElement = document.getElementById('printable-sale-document');
-      const filename = `Satis_Belgesi_${sale.sale_number}.pdf`;
 
       await logWhatsAppShareAttempt('sales', sale.id, norm.normalized, {
         sale_number: sale.sale_number,
         customer_name: sale.customer_name,
       });
 
-      const { method } = await shareOrDownloadWhatsAppDocument(
-        docElement,
+      const { method } = await shareOrDownloadSalesPdf(
+        sale,
+        items,
+        schedules,
+        customer,
+        profile,
         norm.normalized,
-        messageText,
-        filename
+        messageText
       );
 
       if (method === 'whatsapp_web_download') {
-        showSuccess('Belge PDF olarak cihazınıza indirildi! WhatsApp sohbetine dosya olarak ekleyebilirsiniz.');
+        showSuccess('Gerçek PDF belgesi cihazınıza indirildi! WhatsApp sohbetine dosya olarak ekleyebilirsiniz.');
       } else {
         showSuccess('WhatsApp PDF paylaşımı başlatıldı.');
       }
     } catch (err: any) {
       showError(err.message || 'WhatsApp PDF paylaşımı açılırken bir hata oluştu.');
+    }
+  };
+
+  const handleDownloadPdfDirect = async () => {
+    if (!sale) return;
+    try {
+      const pdfFile = await generateSalesPdfFile(sale, items, schedules, customer, profile);
+      downloadPdfFile(pdfFile, pdfFile.name);
+      showSuccess('Gerçek tek sayfa PDF indirildi.');
+    } catch (err: any) {
+      showError(err.message || 'PDF indirme başarısız.');
     }
   };
 
