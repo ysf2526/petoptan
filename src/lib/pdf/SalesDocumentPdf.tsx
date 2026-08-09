@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: '#2563eb',
     marginTop: 2,
-    fontWeight: 'medium',
+    fontWeight: 500,
   },
   contactText: {
     fontSize: 7.5,
