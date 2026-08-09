@@ -1,6 +1,6 @@
 /**
- * PDF / Document Generator & Web Share Helper
- * Handles automatic PDF/HTML document file generation, downloading, and native Web Share / WhatsApp deep linking.
+ * Mobile-First PDF / HTML Document Generator & Web Share Helper
+ * Optimized for mobile phone screens (375px - 430px viewports) when opened via WhatsApp.
  */
 
 /**
@@ -18,8 +18,8 @@ export function downloadFile(file: File | Blob, filename: string) {
 }
 
 /**
- * Generates a stand-alone A4 HTML/Printable Document File from an HTML Element.
- * Embeds styling & UTF-8 encoding for 100% Turkish character accuracy on all mobile & desktop screens.
+ * Generates a stand-alone Mobile-First HTML/Printable Document File from an HTML Element.
+ * Embeds styling & UTF-8 encoding for 100% Turkish character accuracy on all phone screens.
  */
 export function createDocumentFileFromElement(element: HTMLElement, filename: string): File {
   const elementHtml = element.innerHTML;
@@ -28,7 +28,7 @@ export function createDocumentFileFromElement(element: HTMLElement, filename: st
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>${filename}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -38,13 +38,14 @@ export function createDocumentFileFromElement(element: HTMLElement, filename: st
       background-color: #020617;
       color: #f8fafc;
       margin: 0;
-      padding: 16px;
+      padding: 12px;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .print-wrapper {
-      max-width: 840px;
+    .mobile-doc-wrapper {
+      max-width: 600px;
       margin: 0 auto;
+      width: 100%;
     }
     @media print {
       body {
@@ -52,14 +53,14 @@ export function createDocumentFileFromElement(element: HTMLElement, filename: st
         color: #000000 !important;
         padding: 0 !important;
       }
-      .print-wrapper {
+      .mobile-doc-wrapper {
         max-width: 100% !important;
       }
     }
   </style>
 </head>
 <body>
-  <div class="print-wrapper">
+  <div class="mobile-doc-wrapper">
     ${elementHtml}
   </div>
 </body>
