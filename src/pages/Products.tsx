@@ -103,14 +103,11 @@ export const Products: React.FC = () => {
           </p>
         </div>
         <button
-          onClick={() => {
-            setEditingProduct(null);
-            setProductModalOpen(true);
-          }}
-          className="self-start sm:self-center bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 text-xs sm:text-sm flex items-center gap-2 transition-all active:scale-95"
+          onClick={() => openStockEntryModal()}
+          className="self-start sm:self-center bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 text-xs sm:text-sm flex items-center gap-2 transition-all active:scale-95"
         >
-          <Plus className="w-4 h-4" />
-          <span>Yeni Ürün Ekle</span>
+          <Boxes className="w-4 h-4" />
+          <span>Depoya Mal Girişi Yap</span>
         </button>
       </div>
 
