@@ -1,6 +1,6 @@
 /**
  * PDF / Document Generator & Web Share Helper
- * Handles automatic PDF file generation, downloading, and native Web Share / WhatsApp deep linking.
+ * Handles automatic PDF/HTML document file generation, downloading, and native Web Share / WhatsApp deep linking.
  */
 
 /**
@@ -18,51 +18,48 @@ export function downloadFile(file: File | Blob, filename: string) {
 }
 
 /**
- * Generates an A4 HTML/Printable Document File from an HTML Element.
- * Creates a clean, self-contained HTML/PDF document Blob for offline viewing & sharing.
+ * Generates a stand-alone A4 HTML/Printable Document File from an HTML Element.
+ * Embeds styling & UTF-8 encoding for 100% Turkish character accuracy on all mobile & desktop screens.
  */
 export function createDocumentFileFromElement(element: HTMLElement, filename: string): File {
   const elementHtml = element.innerHTML;
-  
+
   const fullDocumentHtml = `<!DOCTYPE html>
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${filename}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #ffffff;
-      color: #000000;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #020617;
+      color: #f8fafc;
       margin: 0;
-      padding: 20px;
+      padding: 16px;
       -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
-    .print-container {
-      max-width: 800px;
+    .print-wrapper {
+      max-width: 840px;
       margin: 0 auto;
-      background: #ffffff;
-      padding: 30px;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th, td {
-      padding: 8px 12px;
-      border-bottom: 1px solid #e2e8f0;
     }
     @media print {
-      body { padding: 0; }
-      .print-container { border: none; padding: 0; max-width: 100%; }
+      body {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        padding: 0 !important;
+      }
+      .print-wrapper {
+        max-width: 100% !important;
+      }
     }
   </style>
 </head>
 <body>
-  <div className="print-container">
+  <div class="print-wrapper">
     ${elementHtml}
   </div>
 </body>
@@ -82,15 +79,12 @@ export async function shareOrDownloadWhatsAppDocument(
   messageText: string,
   documentFilename: string
 ): Promise<{ method: 'native_share' | 'whatsapp_web_download' }> {
-  // 1. If element exists, create document file
   let docFile: File | null = null;
   if (element) {
     docFile = createDocumentFileFromElement(element, documentFilename);
-    // Always trigger download so file is immediately available in Downloads folder
     downloadFile(docFile, documentFilename);
   }
 
-  // 2. Check if native Web Share API with files is supported (iOS Safari / Android Chrome)
   const nav = navigator as any;
   if (docFile && nav.share && nav.canShare && nav.canShare({ files: [docFile] })) {
     try {
@@ -108,7 +102,6 @@ export async function shareOrDownloadWhatsAppDocument(
     }
   }
 
-  // 3. Desktop / Web fallback: WhatsApp Web link with prefilled message
   const digits = phone.replace(/\D/g, '');
   const encodedText = encodeURIComponent(messageText);
   const url = `https://wa.me/${digits}?text=${encodedText}`;
