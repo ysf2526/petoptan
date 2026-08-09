@@ -1,10 +1,13 @@
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
+
 /**
- * Mobile-First PDF / HTML Document Generator & Web Share Helper
- * Optimized for mobile phone screens (375px - 430px viewports) when opened via WhatsApp.
+ * Genuine PDF / Document Generator & Web Share Helper
+ * Generates REAL binary PDF files (application/pdf) with .pdf extension.
  */
 
 /**
- * Downloads a Blob/File directly to the user's computer/phone memory.
+ * Downloads a File or Blob directly to the user's computer or mobile device downloads.
  */
 export function downloadFile(file: File | Blob, filename: string) {
   const url = URL.createObjectURL(file);
@@ -18,95 +21,112 @@ export function downloadFile(file: File | Blob, filename: string) {
 }
 
 /**
- * Generates a stand-alone Mobile-First HTML/Printable Document File from an HTML Element.
- * Embeds styling & UTF-8 encoding for 100% Turkish character accuracy on all phone screens.
+ * Renders an HTML Element into a genuine PDF Binary File (application/pdf).
+ * Uses html2canvas for crisp mobile rendering and jsPDF for standard PDF binary compilation (%PDF-1.4...).
  */
-export function createDocumentFileFromElement(element: HTMLElement, filename: string): File {
-  const elementHtml = element.innerHTML;
+export async function createPdfFileFromElement(element: HTMLElement, filename: string): Promise<File> {
+  const baseFilename = filename.replace(/\.(html|pdf)$/i, '');
+  const pdfFilename = `${baseFilename}.pdf`;
 
-  const fullDocumentHtml = `<!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>${filename}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #020617;
-      color: #f8fafc;
-      margin: 0;
-      padding: 12px;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
-    .mobile-doc-wrapper {
-      max-width: 600px;
-      margin: 0 auto;
-      width: 100%;
-    }
-    @media print {
-      body {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        padding: 0 !important;
-      }
-      .mobile-doc-wrapper {
-        max-width: 100% !important;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="mobile-doc-wrapper">
-    ${elementHtml}
-  </div>
-</body>
-</html>`;
+  // 1. Render DOM element to high-res canvas
+  const canvas = await html2canvas(element, {
+    scale: 2, // High resolution for crisp mobile text rendering
+    useCORS: true,
+    logging: false,
+    backgroundColor: '#020617', // Match dark theme background
+  });
 
-  const blob = new Blob([fullDocumentHtml], { type: 'text/html;charset=utf-8' });
-  return new File([blob], filename, { type: 'text/html;charset=utf-8' });
+  const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+  // 2. Create A4 jsPDF instance
+  const pdf = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pdfWidth = pdf.internal.pageSize.getWidth();
+  const pdfHeight = pdf.internal.pageSize.getHeight();
+
+  const imgWidth = pdfWidth;
+  const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+  let heightLeft = imgHeight;
+  let position = 0;
+
+  pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+  heightLeft -= pdfHeight;
+
+  while (heightLeft > 5) {
+    position = heightLeft - imgHeight;
+    pdf.addPage();
+    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pdfHeight;
+  }
+
+  // 3. Output genuine PDF ArrayBuffer & Blob
+  const pdfArrayBuffer = pdf.output('arraybuffer');
+  const pdfBlob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
+
+  // 4. Wrap into File object with MIME application/pdf
+  const pdfFile = new File([pdfBlob], pdfFilename, { type: 'application/pdf' });
+
+  // Runtime Validation
+  if (pdfFile.type !== 'application/pdf' || !pdfFile.name.endsWith('.pdf')) {
+    throw new Error('Belge PDF (application/pdf) olarak oluşturulamadı.');
+  }
+
+  return pdfFile;
 }
 
 /**
- * Attempts to share document via native Web Share API (Mobile Safari/Chrome)
- * If unsupported (Desktop Chrome), falls back to downloading the file + opening WhatsApp Web deep link.
+ * Attempts to share genuine PDF document via native Web Share API (Mobile Safari/Chrome)
+ * If unsupported (Desktop Chrome), falls back to downloading the PDF file + opening WhatsApp Web deep link.
  */
 export async function shareOrDownloadWhatsAppDocument(
   element: HTMLElement | null,
   phone: string,
   messageText: string,
   documentFilename: string
-): Promise<{ method: 'native_share' | 'whatsapp_web_download' }> {
-  let docFile: File | null = null;
-  if (element) {
-    docFile = createDocumentFileFromElement(element, documentFilename);
-    downloadFile(docFile, documentFilename);
+): Promise<{ method: 'native_share' | 'whatsapp_web_download'; pdfFile: File }> {
+  if (!element) {
+    throw new Error('PDF render edilmek üzere belge elemanı bulunamadı.');
   }
 
+  // Generate genuine PDF file
+  const pdfFile = await createPdfFileFromElement(element, documentFilename);
+
+  // Runtime check
+  if (pdfFile.type !== 'application/pdf' || !pdfFile.name.endsWith('.pdf')) {
+    throw new Error('Belge PDF olarak oluşturulamadı.');
+  }
+
+  // Always trigger direct download of the PDF file
+  downloadFile(pdfFile, pdfFile.name);
+
+  // Attempt native Web Share API with files (iOS Safari / Android Chrome)
   const nav = navigator as any;
-  if (docFile && nav.share && nav.canShare && nav.canShare({ files: [docFile] })) {
+  if (nav.share && nav.canShare && nav.canShare({ files: [pdfFile] })) {
     try {
       await nav.share({
-        title: documentFilename,
+        title: pdfFile.name,
         text: messageText,
-        files: [docFile],
+        files: [pdfFile],
       });
-      return { method: 'native_share' };
+      return { method: 'native_share', pdfFile };
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        return { method: 'native_share' };
+        return { method: 'native_share', pdfFile };
       }
-      console.warn('Native share failed, falling back to WhatsApp Web link:', err);
+      console.warn('Native PDF share failed, falling back to WhatsApp Web link:', err);
     }
   }
 
+  // Web Fallback: WhatsApp Web link
   const digits = phone.replace(/\D/g, '');
   const encodedText = encodeURIComponent(messageText);
   const url = `https://wa.me/${digits}?text=${encodedText}`;
   window.open(url, '_blank');
 
-  return { method: 'whatsapp_web_download' };
+  return { method: 'whatsapp_web_download', pdfFile };
 }

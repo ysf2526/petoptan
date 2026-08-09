@@ -107,7 +107,7 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
     try {
       const messageText = buildSaleWhatsAppMessage(sale, items, schedules);
       const docElement = document.getElementById('printable-sale-document');
-      const filename = `Satis_Belgesi_${sale.sale_number}.html`;
+      const filename = `Satis_Belgesi_${sale.sale_number}.pdf`;
 
       await logWhatsAppShareAttempt('sales', sale.id, norm.normalized, {
         sale_number: sale.sale_number,
@@ -122,12 +122,12 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
       );
 
       if (method === 'whatsapp_web_download') {
-        showSuccess('Belge cihazınıza indirildi! WhatsApp sohbetine ek olarak ekleyebilirsiniz.');
+        showSuccess('Belge PDF olarak cihazınıza indirildi! WhatsApp sohbetine dosya olarak ekleyebilirsiniz.');
       } else {
-        showSuccess('WhatsApp paylaşımı başlatıldı.');
+        showSuccess('WhatsApp PDF paylaşımı başlatıldı.');
       }
     } catch (err: any) {
-      showError(err.message || 'WhatsApp açılırken bir hata oluştu.');
+      showError(err.message || 'WhatsApp PDF paylaşımı açılırken bir hata oluştu.');
     }
   };
 
@@ -148,7 +148,7 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
             </div>
             <div>
               <h2 className="text-sm sm:text-base font-bold text-white">
-                Mobil Öncelikli Satış Belgesi
+                Mobil Öncelikli Satış Belgesi (PDF)
               </h2>
               <p className="text-xs text-slate-400">#{sale?.sale_number}</p>
             </div>
@@ -160,7 +160,7 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
               className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center gap-2 border border-slate-700 transition-all"
             >
               <Printer className="w-4 h-4 text-brand-400" />
-              <span>Yazdır / PDF</span>
+              <span>Yazdır</span>
             </button>
 
             <button
@@ -168,7 +168,7 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
               className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
             >
               <Send className="w-4 h-4" />
-              <span>WhatsApp</span>
+              <span>WhatsApp PDF Gönder</span>
             </button>
 
             <button onClick={onClose} className="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-800">

@@ -141,7 +141,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
       });
 
       const docElement = document.getElementById('printable-customer-statement');
-      const filename = `Cari_Ozet_${customer.business_name.replace(/\s+/g, '_')}.html`;
+      const filename = `Cari_Ozet_${customer.business_name.replace(/\s+/g, '_')}.pdf`;
 
       const { method } = await shareOrDownloadWhatsAppDocument(
         docElement,
@@ -151,9 +151,9 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
       );
 
       if (method === 'whatsapp_web_download') {
-        showSuccess('Cari hesap belgesi indirildi! WhatsApp sohbetine ek olarak ekleyebilirsiniz.');
+        showSuccess('Cari hesap belgesi PDF olarak cihazınıza indirildi! WhatsApp sohbetine dosya olarak ekleyebilirsiniz.');
       } else {
-        showSuccess('WhatsApp paylaşımı başlatıldı.');
+        showSuccess('WhatsApp PDF paylaşımı başlatıldı.');
       }
     } catch (err: any) {
       showError(err.message || 'WhatsApp açılırken bir hata oluştu.');
