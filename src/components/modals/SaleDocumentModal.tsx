@@ -8,7 +8,7 @@ import {
   buildSaleWhatsAppMessage,
   logWhatsAppShareAttempt,
 } from '@/services/whatsappService';
-import { shareOrDownloadWhatsAppDocument } from '@/utils/pdfGenerator';
+import { shareOrDownloadSalesPdf, generateSalesPdfFile, downloadPdfFile } from '@/services/pdfService';
 import {
   X,
   Printer,

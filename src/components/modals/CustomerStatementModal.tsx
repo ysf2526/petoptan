@@ -8,7 +8,7 @@ import {
   buildCustomerStatementMessage,
   logWhatsAppShareAttempt,
 } from '@/services/whatsappService';
-import { shareOrDownloadWhatsAppDocument } from '@/utils/pdfGenerator';
+import { generateSalesPdfFile, downloadPdfFile } from '@/services/pdfService';
 import { X, Printer, Send, Users, Loader2, Calendar, Clock, AlertTriangle, User, Phone, MapPin, Globe, Tag } from 'lucide-react';
 
 interface CustomerStatementModalProps {
@@ -163,7 +163,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
         remaining_debt: currentDebt,
         payment_type: 'vadeli',
         term_days: 30,
-        status: 'completed',
+        status: 'paid',
         notes: 'Cari Hesap ve Vadeler Ekstresi',
         created_at: new Date().toISOString(),
       };
