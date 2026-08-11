@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Truck,
 } from 'lucide-react';
+import { SmartSupplierPaymentPlan } from '@/components/dashboard/SmartSupplierPaymentPlan';
 import {
   BarChart,
   Bar,
@@ -432,6 +433,9 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* AKILLI TEDARİKÇİ ÖDEME PLANI VE NAKİT AKIŞI MOTORU */}
+      <SmartSupplierPaymentPlan onRefreshParent={fetchDashboardData} />
 
       {/* MONTHLY MAIN METRICS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
