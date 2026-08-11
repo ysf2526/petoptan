@@ -46,7 +46,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     lastPaymentDate: null,
   });
 
-  const [selectedSupplierDebt, setSelectedSupplierDebt] = useState<number>(0);
+  const selectedSupplierDebt = suppliers.find((s) => s.id === selectedSupplierId)?.debt || 0;
 
   // Load customers & suppliers with debt
   useEffect(() => {
@@ -97,7 +97,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             if (listWithDebt.length > 0) {
               const indebted = listWithDebt.find((s) => s.debt > 0) || listWithDebt[0];
               setSelectedSupplierId(indebted.id);
-              setSelectedSupplierDebt(indebted.debt);
             }
           }
         } catch (e) {
@@ -412,12 +411,21 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
 
                 {selectedSupplierId && (
-                  <div className="p-3 bg-slate-900/90 rounded-lg border border-purple-800/40 text-xs space-y-1">
+                  <div className="p-3 bg-slate-900/90 rounded-lg border border-purple-800/40 text-xs space-y-1.5">
                     <div className="flex justify-between text-slate-300">
                       <span>Tedarikçiye Güncel Borcunuz:</span>
-                      <span className="font-bold text-amber-400">{formatCurrency(selectedSupplierDebt)}</span>
+                      <span className={`font-bold ${selectedSupplierDebt > 0 ? 'text-amber-400' : 'text-rose-400'}`}>
+                        {formatCurrency(selectedSupplierDebt)}
+                      </span>
                     </div>
-                    {payAmtNum > 0 && (
+
+                    {selectedSupplierDebt <= 0 && (
+                      <div className="p-2.5 bg-rose-950/40 border border-rose-900/60 rounded-lg text-rose-300 text-[11px] leading-relaxed">
+                        ⚠️ Seçilen tedarikçi firmaya sistemde kayıtlı borcunuz bulunmamaktadır (0,00 TL). Tedarikçiler sayfasından <strong>"+ Borç Ekle"</strong> butonuna tıklayarak borç kaydı (Örn: 80.000 TL) oluşturabilirsiniz.
+                      </div>
+                    )}
+
+                    {payAmtNum > 0 && selectedSupplierDebt > 0 && (
                       <div className="border-t border-slate-800 pt-1 mt-1 space-y-1">
                         <div className="flex justify-between text-slate-400">
                           <span>Mahsup Sonrası Müşteri Borcu:</span>

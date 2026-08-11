@@ -6,6 +6,7 @@ import { formatCurrency, formatDateTime } from '@/utils/formatters';
 import { Supplier, SupplierLedger } from '@/types/database.types';
 import { SupplierModal } from '@/components/modals/SupplierModal';
 import { SupplierPaymentModal } from '@/components/modals/SupplierPaymentModal';
+import { AddSupplierDebtModal } from '@/components/modals/AddSupplierDebtModal';
 import { SmartSupplierPaymentPlan } from '@/components/dashboard/SmartSupplierPaymentPlan';
 import {
   Truck,
@@ -25,6 +26,7 @@ import {
   Ban,
   Building2,
   CheckCircle2,
+  PlusCircle,
 } from 'lucide-react';
 
 interface SupplierWithBalance extends Supplier {
@@ -49,6 +51,9 @@ export const Suppliers: React.FC = () => {
 
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentTargetSupplierId, setPaymentTargetSupplierId] = useState<string | null>(null);
+
+  const [addDebtModalOpen, setAddDebtModalOpen] = useState(false);
+  const [addDebtTargetSupplierId, setAddDebtTargetSupplierId] = useState<string | null>(null);
 
   // Selected supplier ID for Ledger Timeline Drawer (primitive ID string to prevent infinite re-render loops)
   const [selectedLedgerSupplierId, setSelectedLedgerSupplierId] = useState<string | null>(null);
@@ -252,6 +257,17 @@ export const Suppliers: React.FC = () => {
         <div className="flex items-center gap-3 self-start sm:self-center">
           <button
             onClick={() => {
+              setAddDebtTargetSupplierId(null);
+              setAddDebtModalOpen(true);
+            }}
+            className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-black px-4 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 text-xs sm:text-sm flex items-center gap-2 transition-all active:scale-95"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>+ Borç Ekle</span>
+          </button>
+
+          <button
+            onClick={() => {
               setPaymentTargetSupplierId(null);
               setPaymentModalOpen(true);
             }}
@@ -397,6 +413,18 @@ export const Suppliers: React.FC = () => {
                     </td>
                     <td className="p-4 text-center">
                       <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => {
+                            setAddDebtTargetSupplierId(s.id);
+                            setAddDebtModalOpen(true);
+                          }}
+                          className="px-2 py-1.5 rounded-lg bg-amber-950/80 text-amber-400 border border-amber-800/60 font-bold text-xs hover:bg-amber-900 transition-all flex items-center gap-1"
+                          title="Borç / Bakiye Ekle"
+                        >
+                          <PlusCircle className="w-3.5 h-3.5" />
+                          <span>+ Borç Ekle</span>
+                        </button>
+
                         <button
                           onClick={() => {
                             setPaymentTargetSupplierId(s.id);
@@ -630,6 +658,14 @@ export const Suppliers: React.FC = () => {
         isOpen={paymentModalOpen}
         onClose={() => setPaymentModalOpen(false)}
         defaultSupplierId={paymentTargetSupplierId}
+        onSuccess={fetchSuppliers}
+      />
+
+      {/* Add Supplier Debt / Opening Balance Modal */}
+      <AddSupplierDebtModal
+        isOpen={addDebtModalOpen}
+        onClose={() => setAddDebtModalOpen(false)}
+        defaultSupplierId={addDebtTargetSupplierId}
         onSuccess={fetchSuppliers}
       />
     </div>
