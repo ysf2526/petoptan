@@ -159,13 +159,17 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
         customer_name: customer.business_name,
         sale_number: `CARİ-${formatDate(new Date().toISOString()).replace(/\./g, '')}`,
         total_amount: currentDebt,
+        total_cost: 0,
+        total_profit: 0,
         paid_amount: 0,
         remaining_debt: currentDebt,
         payment_type: 'vadeli',
         term_days: 30,
+        due_date: null,
         status: 'paid',
         notes: 'Cari Hesap ve Vadeler Ekstresi',
         created_at: new Date().toISOString(),
+        deleted_at: null,
       };
 
       const pdfFile = await generateSalesPdfFile(mockSale, [], upcomingSchedules, customer, profile);
