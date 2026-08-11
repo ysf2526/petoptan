@@ -338,7 +338,7 @@ export async function calculateBusinessAssistantInsights(): Promise<BusinessAssi
   // ----------------------------------------------------
   const { data: allSaleItems } = await supabase
     .from('sale_items')
-    .select('product_name, quantity, total_amount, unit_cost_snapshot')
+    .select('product_name, quantity, total_amount, purchase_price_snapshot, created_at')
     .gte('created_at', past30DaysStr)
     .is('deleted_at', null);
 
@@ -350,7 +350,7 @@ export async function calculateBusinessAssistantInsights(): Promise<BusinessAssi
     allSaleItems.forEach((it) => {
       const q = Number(it.quantity || 0);
       const s = Number(it.total_amount || 0);
-      const c = q * Number(it.unit_cost_snapshot || 0);
+      const c = q * Number(it.purchase_price_snapshot || 0);
 
       const prev = itemMap.get(it.product_name) || { qty: 0, sales: 0, cogs: 0 };
       itemMap.set(it.product_name, {

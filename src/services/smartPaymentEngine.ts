@@ -101,7 +101,7 @@ export async function calculateSmartPaymentPlan(): Promise<SmartPaymentAnalysis>
   let weeklyCOGS = 0;
   saleItems.forEach((it) => {
     const qty = Number(it.quantity || 0);
-    const cost = Number(it.unit_cost_snapshot || 0);
+    const cost = Number(it.purchase_price_snapshot || 0);
     weeklyCOGS += qty * cost;
   });
 
@@ -126,7 +126,7 @@ export async function calculateSmartPaymentPlan(): Promise<SmartPaymentAnalysis>
     const supId = productSupplierMap.get(it.product_id);
     if (supId) {
       const vol = Number(it.total_amount || 0);
-      const cogs = Number(it.quantity || 0) * Number(it.unit_cost_snapshot || 0);
+      const cogs = Number(it.quantity || 0) * Number(it.purchase_price_snapshot || 0);
       const profit = Math.max(0, vol - cogs);
 
       const existing = supplierSalesMap.get(supId) || { volume: 0, profit: 0 };

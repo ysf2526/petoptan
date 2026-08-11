@@ -426,7 +426,7 @@ export const Assistant: React.FC = () => {
       <PaymentModal
         isOpen={paymentModalOpen}
         onClose={() => setPaymentModalOpen(false)}
-        defaultCustomerId={targetCustomerId}
+        defaultCustomerId={targetCustomerId || undefined}
         onSuccess={() => {
           showSuccess('Tahsilat başarıyla kaydedildi.');
           loadAssistant();

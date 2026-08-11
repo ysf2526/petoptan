@@ -9,7 +9,7 @@ import { X, Receipt, Loader2, CheckCircle2, ArrowRightLeft, ShieldAlert } from '
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultCustomerId?: string;
+  defaultCustomerId?: string | null;
   onSuccess?: () => void;
 }
 
