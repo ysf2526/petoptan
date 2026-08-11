@@ -104,16 +104,24 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           setOverdueDebt(overD);
           setUpcomingSchedules(upList);
 
-          // 5. Last Sale
+          // 5. Last Sale & Active Sales Debt
           const { data: sData } = await supabase
             .from('sales')
             .select('*')
             .eq('customer_id', customerId)
             .is('deleted_at', null)
-            .order('created_at', { ascending: false })
-            .limit(1);
+            .order('created_at', { ascending: false });
 
-          setLastSale(sData?.[0] ? (sData[0] as Sale) : null);
+          const salesArr = (sData as Sale[]) || [];
+          const activeSalesDebt = salesArr
+            .filter((s) => s.status !== 'cancelled')
+            .reduce((acc, s) => acc + Number(s.remaining_debt || 0), 0);
+
+          setLastSale(salesArr[0] ? salesArr[0] : null);
+
+          // Fail-safe Current Debt Calculation
+          const bal = lData?.[0]?.balance !== undefined && lData?.[0]?.balance !== null ? Number(lData[0].balance) : 0;
+          setCurrentDebt(Math.max(bal, activeSalesDebt));
         } catch (err: any) {
           console.error(err);
           showError(err.message || 'Müşteri bilgileri yüklenemedi.');

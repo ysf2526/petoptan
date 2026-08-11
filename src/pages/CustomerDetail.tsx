@@ -139,7 +139,17 @@ export const CustomerDetail: React.FC = () => {
         .filter((s) => s.status !== 'cancelled')
         .reduce((acc, s) => acc + Number(s.total_amount || 0), 0);
 
+      const activeSalesDebt = salesArr
+        .filter((s) => s.status !== 'cancelled')
+        .reduce((acc, s) => acc + Number(s.remaining_debt || 0), 0);
+
       setTotalPurchases(totPurchasesFromSales > 0 ? totPurchasesFromSales : totPurchases);
+
+      // Fail-safe Current Debt Calculation
+      const latestBal = Number(lData?.[0]?.balance || 0);
+      const calculatedDebt = Math.max(0, totPurchases - totPay);
+      const finalDebt = Math.max(latestBal, calculatedDebt, activeSalesDebt);
+      setCurrentDebt(finalDebt);
 
       if (salesArr.length > 0) {
         setLastPurchaseDate(salesArr[0].created_at);
@@ -188,6 +198,10 @@ export const CustomerDetail: React.FC = () => {
 
   useEffect(() => {
     fetchCustomerDetails();
+
+    const handleRefresh = () => fetchCustomerDetails();
+    window.addEventListener('refresh-data', handleRefresh);
+    return () => window.removeEventListener('refresh-data', handleRefresh);
   }, [fetchCustomerDetails]);
 
   // Consolidated Dynamic Payment Plan Calculation

@@ -46,7 +46,9 @@ export async function generateSalesPdfFile(
     .order('created_at', { ascending: false })
     .limit(1);
 
-  const netTotalDebt = lData?.[0]?.balance !== undefined ? Number(lData[0].balance) : Number(sale.remaining_debt || 0);
+  const rawLedgerBal = (lData && lData.length > 0 && lData[0].balance !== null && lData[0].balance !== undefined) ? Number(lData[0].balance) : 0;
+  const saleRemaining = Number(sale.remaining_debt || 0);
+  const netTotalDebt = Math.max(rawLedgerBal, saleRemaining);
 
   // 2. Fetch fresh customer sales and payment schedules for consolidated plan
   const { data: salesData } = await supabase

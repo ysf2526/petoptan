@@ -70,10 +70,27 @@ export const Customers: React.FC = () => {
         netDebtMap[l.customer_id] = (netDebtMap[l.customer_id] || 0) + Number(l.debit || 0) - Number(l.credit || 0);
       });
 
-      const listWithBal = (cData || []).map((c) => ({
-        ...c,
-        current_balance: (netDebtMap[c.id] !== undefined && netDebtMap[c.id] > 0) ? netDebtMap[c.id] : (latestBalMap[c.id] || 0),
-      }));
+      // 3. Fetch active sales remaining debt as fail-safe fallback
+      const { data: sData } = await supabase
+        .from('sales')
+        .select('customer_id, remaining_debt, status')
+        .is('deleted_at', null)
+        .neq('status', 'cancelled');
+
+      const salesDebtMap: Record<string, number> = {};
+      sData?.forEach((s) => {
+        salesDebtMap[s.customer_id] = (salesDebtMap[s.customer_id] || 0) + Number(s.remaining_debt || 0);
+      });
+
+      const listWithBal = (cData || []).map((c) => {
+        const netD = netDebtMap[c.id] || 0;
+        const latB = latestBalMap[c.id] || 0;
+        const salD = salesDebtMap[c.id] || 0;
+        return {
+          ...c,
+          current_balance: Math.max(0, netD, latB, salD),
+        };
+      });
 
       setCustomers(listWithBal);
     } catch (err) {
@@ -85,6 +102,10 @@ export const Customers: React.FC = () => {
 
   useEffect(() => {
     fetchCustomers();
+
+    const handleRefresh = () => fetchCustomers();
+    window.addEventListener('refresh-data', handleRefresh);
+    return () => window.removeEventListener('refresh-data', handleRefresh);
   }, [fetchCustomers]);
 
   const handleConfirmDeleteCustomer = async () => {

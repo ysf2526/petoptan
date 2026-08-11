@@ -124,7 +124,9 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
             .order('created_at', { ascending: false })
             .limit(1);
 
-          const totalDebt = lData?.[0]?.balance !== undefined ? Number(lData[0].balance) : Number(currentSale.remaining_debt || 0);
+          const rawLedgerBal = (lData && lData.length > 0 && lData[0].balance !== null && lData[0].balance !== undefined) ? Number(lData[0].balance) : 0;
+          const saleRemaining = Number(currentSale.remaining_debt || 0);
+          const totalDebt = Math.max(rawLedgerBal, saleRemaining);
           const saleTotal = Number(currentSale.total_amount || 0);
           const payAmount = currentSale.payment_type === 'pesin' ? saleTotal : Number(currentSale.paid_amount || 0);
           const prevBal = Math.max(0, totalDebt - saleTotal + payAmount);
