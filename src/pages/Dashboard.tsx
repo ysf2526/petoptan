@@ -156,6 +156,8 @@ export const Dashboard: React.FC = () => {
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
+      const supplierCredits: Record<string, number> = {};
+      const supplierDebits: Record<string, number> = {};
       const supplierLatestBalances: Record<string, number> = {};
       let mSupPurchase = 0;
       let mSupOffset = 0;
@@ -164,12 +166,27 @@ export const Dashboard: React.FC = () => {
         if (supplierLatestBalances[item.supplier_id] === undefined) {
           supplierLatestBalances[item.supplier_id] = Number(item.balance || 0);
         }
+        if (item.movement_type === 'PURCHASE' || item.movement_type === 'ADJUSTMENT') {
+          supplierCredits[item.supplier_id] = (supplierCredits[item.supplier_id] || 0) + Number(item.credit || 0);
+        } else {
+          supplierDebits[item.supplier_id] = (supplierDebits[item.supplier_id] || 0) + Number(item.debit || 0);
+        }
+
         if (item.created_at >= firstDayOfMonth) {
           if (item.movement_type === 'PURCHASE') mSupPurchase += Number(item.credit || 0);
           else if (item.movement_type === 'OFFSET') mSupOffset += Number(item.debit || 0);
         }
       });
-      const totSupDebt = Object.values(supplierLatestBalances).reduce((acc, val) => acc + (val > 0 ? val : 0), 0);
+
+      // Fail-safe balance calculation for every supplier
+      const finalSupplierBalances: Record<string, number> = {};
+      Object.keys(supplierLatestBalances).forEach((supId) => {
+        const latBal = supplierLatestBalances[supId];
+        const calcBal = Math.max(0, (supplierCredits[supId] || 0) - (supplierDebits[supId] || 0));
+        finalSupplierBalances[supId] = latBal > 0 ? latBal : calcBal;
+      });
+
+      const totSupDebt = Object.values(finalSupplierBalances).reduce((acc, val) => acc + (val > 0 ? val : 0), 0);
 
       // 6. Payment Schedules: Due this week & Overdue
       const { data: schedules } = await supabase

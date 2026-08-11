@@ -67,15 +67,27 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
           supData.map(async (sup) => {
             const { data: lData } = await supabase
               .from('supplier_ledger')
-              .select('balance')
+              .select('balance, credit, debit, movement_type')
               .eq('supplier_id', sup.id)
               .is('deleted_at', null)
-              .order('created_at', { ascending: false })
-              .limit(1);
+              .order('created_at', { ascending: false });
+
+            let credPurch = 0;
+            let totDeb = 0;
+            lData?.forEach((row) => {
+              if (row.movement_type === 'PURCHASE' || row.movement_type === 'ADJUSTMENT') {
+                credPurch += Number(row.credit || 0);
+              } else {
+                totDeb += Number(row.debit || 0);
+              }
+            });
+
+            const latestBal = Number(lData?.[0]?.balance || 0);
+            const bal = latestBal > 0 ? latestBal : Math.max(0, credPurch - totDeb);
 
             return {
               ...sup,
-              balance: Number(lData?.[0]?.balance || 0),
+              balance: bal,
             };
           })
         );

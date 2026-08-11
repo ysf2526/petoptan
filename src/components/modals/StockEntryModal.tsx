@@ -267,10 +267,9 @@ export const StockEntryModal: React.FC<StockEntryModalProps> = ({
       }
 
       if (data && data.success) {
-        const msg =
-          purchaseType === 'vadeli'
-            ? `Toplu Mal Girişi İşlendi! Tedarikçiye +${formatCurrency(data.debt_added)} borç kaydedildi.`
-            : `Toplu Mal Girişi Başarıyla Tamamlandı! (${data.items_processed} Kalem Ürün Stokta)`;
+        const msg = selectedSupplierId
+          ? `Mal Girişi Başarıyla İşlendi! Tedarikçiye +${formatCurrency(data.debt_added)} borç yazıldı (Güncel Borç: ${formatCurrency(data.new_supplier_balance)}).`
+          : `Mal Girişi Başarıyla Tamamlandı! (${data.items_processed} Kalem Ürün Stokta)`;
 
         showSuccess(msg);
         setShowConfirmation(false);

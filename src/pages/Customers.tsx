@@ -7,6 +7,7 @@ import { formatCurrency, formatDate } from '@/utils/formatters';
 import { Customer } from '@/types/database.types';
 import { LayoutContextType } from '@/components/layout/Layout';
 import { CustomerModal } from '@/components/modals/CustomerModal';
+import { ConfirmPasswordDeleteModal } from '@/components/modals/ConfirmPasswordDeleteModal';
 import {
   Users,
   Search,
@@ -38,6 +39,7 @@ export const Customers: React.FC = () => {
   // Modal State
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -85,22 +87,30 @@ export const Customers: React.FC = () => {
     fetchCustomers();
   }, [fetchCustomers]);
 
-  const handleDeleteCustomer = async (cust: Customer) => {
-    if (!window.confirm(`"${cust.business_name}" adlı müşteriyi silmek istediğinize emin misiniz? (Geçmiş mali kayıtlar saklanacaktır)`)) {
-      return;
-    }
+  const handleConfirmDeleteCustomer = async () => {
+    if (!deletingCustomer) return;
 
     try {
       const { error } = await supabase
         .from('customers')
         .update({ deleted_at: new Date().toISOString() })
-        .eq('id', cust.id);
+        .eq('id', deletingCustomer.id);
 
       if (error) throw error;
-      showSuccess(`Müşteri kaydı silindi.`);
+
+      await supabase.from('audit_logs').insert({
+        action: 'DELETE_CUSTOMER',
+        entity_type: 'customers',
+        entity_id: deletingCustomer.id,
+        details: { business_name: deletingCustomer.business_name },
+      });
+
+      showSuccess(`"${deletingCustomer.business_name}" müşterisi başarıyla silindi.`);
       fetchCustomers();
     } catch (err) {
       showError(parseErrorMessage(err));
+    } finally {
+      setDeletingCustomer(null);
     }
   };
 
@@ -246,7 +256,7 @@ export const Customers: React.FC = () => {
                         </button>
 
                         <button
-                          onClick={() => handleDeleteCustomer(c)}
+                          onClick={() => setDeletingCustomer(c)}
                           title="Sil"
                           className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-lg"
                         >
@@ -268,6 +278,16 @@ export const Customers: React.FC = () => {
         onClose={() => setCustomerModalOpen(false)}
         customerToEdit={editingCustomer}
         onSuccess={fetchCustomers}
+      />
+
+      {/* Delete Password Confirmation Modal */}
+      <ConfirmPasswordDeleteModal
+        isOpen={Boolean(deletingCustomer)}
+        onClose={() => setDeletingCustomer(null)}
+        title="Müşteri Kaydını Sil"
+        entityName={deletingCustomer?.business_name || ''}
+        entityType="Müşteri"
+        onConfirmSuccess={handleConfirmDeleteCustomer}
       />
     </div>
   );

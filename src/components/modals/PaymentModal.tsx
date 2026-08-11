@@ -82,13 +82,23 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               sData.map(async (sup) => {
                 const { data: ledgerData } = await supabase
                   .from('supplier_ledger')
-                  .select('balance')
+                  .select('balance, credit, debit, movement_type')
                   .eq('supplier_id', sup.id)
                   .is('deleted_at', null)
-                  .order('created_at', { ascending: false })
-                  .limit(1);
+                  .order('created_at', { ascending: false });
 
-                const debt = Number(ledgerData?.[0]?.balance || 0);
+                let credPurch = 0;
+                let totDeb = 0;
+                ledgerData?.forEach((row) => {
+                  if (row.movement_type === 'PURCHASE' || row.movement_type === 'ADJUSTMENT') {
+                    credPurch += Number(row.credit || 0);
+                  } else {
+                    totDeb += Number(row.debit || 0);
+                  }
+                });
+
+                const latestBal = Number(ledgerData?.[0]?.balance || 0);
+                const debt = latestBal > 0 ? latestBal : Math.max(0, credPurch - totDeb);
                 return { id: sup.id, company_name: sup.company_name, debt };
               })
             );
@@ -178,13 +188,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   }, [selectedCustomerId]);
 
-  // Update selected supplier debt when supplier changes
-  useEffect(() => {
-    if (selectedSupplierId) {
-      const found = suppliers.find((s) => s.id === selectedSupplierId);
-      setSelectedSupplierDebt(found ? found.debt : 0);
-    }
-  }, [selectedSupplierId, suppliers]);
+
 
   if (!isOpen) return null;
 
