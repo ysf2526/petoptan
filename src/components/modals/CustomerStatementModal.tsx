@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { Customer, PaymentSchedule, Sale, Profile } from '@/types/database.types';
-import { buildConsolidatedPaymentPlan, ConsolidatedInstallment } from '@/services/consolidatedPaymentPlanService';
+import { buildConsolidatedPaymentPlan, calculateNetCustomerDebt, ConsolidatedInstallment } from '@/services/consolidatedPaymentPlanService';
 import {
   normalizeTurkishPhone,
   buildCustomerStatementMessage,
@@ -110,15 +110,14 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
             .order('created_at', { ascending: false });
 
           const salesArr = (sData as Sale[]) || [];
-          const activeSalesDebt = salesArr
-            .filter((s) => s.status !== 'cancelled')
-            .reduce((acc, s) => acc + Number(s.remaining_debt || 0), 0);
-
           setLastSale(salesArr[0] ? salesArr[0] : null);
 
-          // Fail-safe Current Debt Calculation
-          const ledgerBal = lData?.[0]?.balance !== undefined && lData?.[0]?.balance !== null ? Number(lData[0].balance) : 0;
-          setCurrentDebt(Math.max(ledgerBal, activeSalesDebt));
+          // Fail-safe Current Debt Calculation using single source of truth helper
+          const { netTotalDebt: finalDebt } = calculateNetCustomerDebt({
+            ledgerEntries: lData,
+            salesList: salesArr,
+          });
+          setCurrentDebt(finalDebt);
         } catch (err: any) {
           console.error(err);
           showError(err.message || 'Müşteri bilgileri yüklenemedi.');

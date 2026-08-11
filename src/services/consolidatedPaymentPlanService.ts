@@ -19,6 +19,65 @@ export interface ConsolidatedPaymentPlanSummary {
   newestSaleDueDate: string | null;
 }
 
+export interface CalculateDebtParams {
+  ledgerEntries?: { balance?: number; debit?: number; credit?: number; movement_type?: string }[] | null;
+  salesList?: { id?: string; total_amount?: number; remaining_debt?: number; status?: string }[] | null;
+  currentSale?: { id?: string; total_amount?: number; remaining_debt?: number; payment_type?: string; paid_amount?: number } | null;
+}
+
+export interface NetDebtCalculationResult {
+  netTotalDebt: number;
+  previousBalance: number;
+  currentSaleAmount: number;
+  paymentMade: number;
+}
+
+/**
+ * Calculates accurate Net Customer Debt and Previous Balance.
+ * Ensures all unpaid open sales and unallocated ledger balances are included.
+ */
+export function calculateNetCustomerDebt(params: CalculateDebtParams): NetDebtCalculationResult {
+  const { ledgerEntries, salesList, currentSale } = params;
+
+  // 1. Sum of remaining_debt across ALL active non-cancelled sales
+  const activeSales = salesList?.filter((s) => s.status !== 'cancelled') || [];
+  const activeSalesDebtSum = activeSales.reduce((acc, s) => acc + Number(s.remaining_debt || 0), 0);
+
+  // 2. Latest running balance from customer_ledger
+  const latestLedgerBal = (ledgerEntries && ledgerEntries.length > 0 && ledgerEntries[0].balance !== null && ledgerEntries[0].balance !== undefined)
+    ? Number(ledgerEntries[0].balance)
+    : 0;
+
+  // 3. Fallback: net debit minus credit from ledger
+  let totDebit = 0;
+  let totCredit = 0;
+  ledgerEntries?.forEach((l) => {
+    totDebit += Number(l.debit || 0);
+    totCredit += Number(l.credit || 0);
+  });
+  const netLedgerCalc = Math.max(0, totDebit - totCredit);
+
+  // 4. Current Sale amount & payment made
+  const currentSaleAmount = currentSale ? Number(currentSale.total_amount || 0) : 0;
+  const paymentMade = currentSale
+    ? (currentSale.payment_type === 'pesin' ? currentSaleAmount : Number(currentSale.paid_amount || 0))
+    : 0;
+  const currentSaleRemaining = currentSale ? Number(currentSale.remaining_debt || 0) : 0;
+
+  // 5. Final Net Total Debt (MUST be at least activeSalesDebtSum or ledger balance or current sale remaining)
+  const netTotalDebt = Math.max(activeSalesDebtSum, latestLedgerBal, netLedgerCalc, currentSaleRemaining);
+
+  // 6. Previous Balance before current sale
+  const previousBalance = Math.max(0, netTotalDebt - currentSaleAmount + paymentMade);
+
+  return {
+    netTotalDebt,
+    previousBalance,
+    currentSaleAmount,
+    paymentMade,
+  };
+}
+
 /**
  * Builds a unified, customer-level consolidated payment plan based on net customer debt and weekly payment target.
  * Preserves individual sale 30-day term dates in the background while presenting a single clean schedule.

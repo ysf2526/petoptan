@@ -3,7 +3,7 @@ import { pdf } from '@react-pdf/renderer';
 import { supabase } from '@/lib/supabase';
 import { Sale, SaleItem, PaymentSchedule, Customer, Profile } from '@/types/database.types';
 import { SalesDocumentPdf } from '@/lib/pdf/SalesDocumentPdf';
-import { buildConsolidatedPaymentPlan } from '@/services/consolidatedPaymentPlanService';
+import { buildConsolidatedPaymentPlan, calculateNetCustomerDebt } from '@/services/consolidatedPaymentPlanService';
 
 /**
  * Native PDF Generator Service using @react-pdf/renderer
@@ -21,12 +21,11 @@ export function downloadPdfFile(file: File | Blob, filename: string) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /**
- * Compiles a Sales Document into a genuine PDF binary File object (application/pdf).
- * Fetches fresh DB customer balance & consolidated payment plan before compiling PDF.
+ * Generates a native vector PDF File for a Sale Document with Consolidated Payment Plan.
  */
 export async function generateSalesPdfFile(
   sale: Sale,
@@ -37,20 +36,7 @@ export async function generateSalesPdfFile(
 ): Promise<File> {
   const customerId = sale.customer_id;
 
-  // 1. Fetch fresh customer ledger balance directly from DB to avoid state cache bugs
-  const { data: lData } = await supabase
-    .from('customer_ledger')
-    .select('balance')
-    .eq('customer_id', customerId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(1);
-
-  const rawLedgerBal = (lData && lData.length > 0 && lData[0].balance !== null && lData[0].balance !== undefined) ? Number(lData[0].balance) : 0;
-  const saleRemaining = Number(sale.remaining_debt || 0);
-  const netTotalDebt = Math.max(rawLedgerBal, saleRemaining);
-
-  // 2. Fetch fresh customer sales and payment schedules for consolidated plan
+  // 1. Fetch fresh customer sales
   const { data: salesData } = await supabase
     .from('sales')
     .select('*')
@@ -58,6 +44,16 @@ export async function generateSalesPdfFile(
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
 
+  // 2. Fetch fresh customer ledger
+  const { data: lData } = await supabase
+    .from('customer_ledger')
+    .select('*')
+    .eq('customer_id', customerId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false });
+
+  // 3. Fetch fresh payment schedules for consolidated plan
   const { data: schedulesData } = await supabase
     .from('payment_schedules')
     .select('*')
@@ -65,16 +61,21 @@ export async function generateSalesPdfFile(
     .is('deleted_at', null)
     .order('due_date', { ascending: true });
 
-  // 3. Compute accurate financial metrics
-  const currentSaleAmount = Number(sale.total_amount || 0);
-  const paymentMade = sale.payment_type === 'pesin' ? currentSaleAmount : Number(sale.paid_amount || 0);
-  const previousBalance = Math.max(0, netTotalDebt - currentSaleAmount + paymentMade);
+  const salesList = (salesData as Sale[]) || [];
+  const ledgerEntries = lData || [];
 
-  // 4. Generate consolidated payment plan over netTotalDebt
+  // 4. Calculate accurate financial metrics using single source of truth helper
+  const { netTotalDebt, previousBalance, currentSaleAmount, paymentMade } = calculateNetCustomerDebt({
+    ledgerEntries,
+    salesList,
+    currentSale: sale,
+  });
+
+  // 5. Generate consolidated payment plan over netTotalDebt
   const plan = buildConsolidatedPaymentPlan(
     customer,
     netTotalDebt,
-    (salesData as Sale[]) || [],
+    salesList,
     (schedulesData as PaymentSchedule[]) || [],
     customer?.weekly_payment_target
   );

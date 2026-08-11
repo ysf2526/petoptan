@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { Sale, SaleItem, PaymentSchedule, Customer, Profile } from '@/types/database.types';
-import { buildConsolidatedPaymentPlan } from '@/services/consolidatedPaymentPlanService';
+import { buildConsolidatedPaymentPlan, calculateNetCustomerDebt } from '@/services/consolidatedPaymentPlanService';
 import {
   normalizeTurkishPhone,
   buildSaleWhatsAppMessage,
@@ -115,34 +115,21 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
             .order('due_date', { ascending: true });
           setSchedules(schData || []);
 
-          // 6. Fresh DB Ledger Query for Exact Net Customer Debt
-          const { data: lData } = await supabase
-            .from('customer_ledger')
-            .select('balance')
-            .eq('customer_id', currentSale.customer_id)
-            .is('deleted_at', null)
-            .order('created_at', { ascending: false })
-            .limit(1);
-
-          const rawLedgerBal = (lData && lData.length > 0 && lData[0].balance !== null && lData[0].balance !== undefined) ? Number(lData[0].balance) : 0;
-          const saleRemaining = Number(currentSale.remaining_debt || 0);
-          const totalDebt = Math.max(rawLedgerBal, saleRemaining);
-          const saleTotal = Number(currentSale.total_amount || 0);
-          const payAmount = currentSale.payment_type === 'pesin' ? saleTotal : Number(currentSale.paid_amount || 0);
-          const prevBal = Math.max(0, totalDebt - saleTotal + payAmount);
-
-          setNetTotalDebt(totalDebt);
-          setCurrentSaleAmount(saleTotal);
-          setPaymentMade(payAmount);
-          setPreviousBalance(prevBal);
-
-          // 7. Fetch all active sales & schedules for consolidated customer plan
+          // 6. Fresh DB Queries for Exact Net Customer Debt & Consolidated Plan
           const { data: custSalesData } = await supabase
             .from('sales')
             .select('*')
             .eq('customer_id', currentSale.customer_id)
             .is('deleted_at', null)
             .order('created_at', { ascending: false });
+
+          const { data: lData } = await supabase
+            .from('customer_ledger')
+            .select('*')
+            .eq('customer_id', currentSale.customer_id)
+            .is('deleted_at', null)
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: false });
 
           const { data: custSchedulesData } = await supabase
             .from('payment_schedules')
@@ -151,7 +138,21 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
             .is('deleted_at', null)
             .order('due_date', { ascending: true });
 
-          setAllCustomerSales((custSalesData as Sale[]) || []);
+          const salesList = (custSalesData as Sale[]) || [];
+          const ledgerEntries = lData || [];
+
+          const { netTotalDebt: totalDebt, previousBalance: prevBal, currentSaleAmount: saleTotal, paymentMade: payAmount } = calculateNetCustomerDebt({
+            ledgerEntries,
+            salesList,
+            currentSale,
+          });
+
+          setNetTotalDebt(totalDebt);
+          setCurrentSaleAmount(saleTotal);
+          setPaymentMade(payAmount);
+          setPreviousBalance(prevBal);
+
+          setAllCustomerSales(salesList);
           setAllCustomerSchedules((custSchedulesData as PaymentSchedule[]) || []);
         } catch (err: any) {
           console.error(err);

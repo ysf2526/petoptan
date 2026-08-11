@@ -8,6 +8,7 @@ import { Customer } from '@/types/database.types';
 import { LayoutContextType } from '@/components/layout/Layout';
 import { CustomerModal } from '@/components/modals/CustomerModal';
 import { ConfirmPasswordDeleteModal } from '@/components/modals/ConfirmPasswordDeleteModal';
+import { calculateNetCustomerDebt } from '@/services/consolidatedPaymentPlanService';
 import {
   Users,
   Search,
@@ -53,42 +54,29 @@ export const Customers: React.FC = () => {
 
       if (cError) throw cError;
 
-      // 2. Fetch Customer Ledger to compute net balance per Customer
+      // 2. Fetch Customer Ledger & Active Sales to compute exact net balance per Customer
       const { data: lData } = await supabase
         .from('customer_ledger')
         .select('customer_id, debit, credit, balance, created_at')
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
-      const latestBalMap: Record<string, number> = {};
-      const netDebtMap: Record<string, number> = {};
-
-      lData?.forEach((l) => {
-        if (latestBalMap[l.customer_id] === undefined) {
-          latestBalMap[l.customer_id] = Number(l.balance || 0);
-        }
-        netDebtMap[l.customer_id] = (netDebtMap[l.customer_id] || 0) + Number(l.debit || 0) - Number(l.credit || 0);
-      });
-
-      // 3. Fetch active sales remaining debt as fail-safe fallback
       const { data: sData } = await supabase
         .from('sales')
         .select('customer_id, remaining_debt, status')
         .is('deleted_at', null)
         .neq('status', 'cancelled');
 
-      const salesDebtMap: Record<string, number> = {};
-      sData?.forEach((s) => {
-        salesDebtMap[s.customer_id] = (salesDebtMap[s.customer_id] || 0) + Number(s.remaining_debt || 0);
-      });
-
       const listWithBal = (cData || []).map((c) => {
-        const netD = netDebtMap[c.id] || 0;
-        const latB = latestBalMap[c.id] || 0;
-        const salD = salesDebtMap[c.id] || 0;
+        const custLedger = lData?.filter((l) => l.customer_id === c.id) || [];
+        const custSales = sData?.filter((s) => s.customer_id === c.id) || [];
+        const { netTotalDebt } = calculateNetCustomerDebt({
+          ledgerEntries: custLedger,
+          salesList: custSales,
+        });
         return {
           ...c,
-          current_balance: Math.max(0, netD, latB, salD),
+          current_balance: netTotalDebt,
         };
       });
 

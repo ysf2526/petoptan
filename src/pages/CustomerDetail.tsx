@@ -7,6 +7,7 @@ import { Customer, CustomerLedger, Sale, PaymentSchedule } from '@/types/databas
 import { LayoutContextType } from '@/components/layout/Layout';
 import {
   buildConsolidatedPaymentPlan,
+  calculateNetCustomerDebt,
   ConsolidatedPaymentPlanSummary,
 } from '@/services/consolidatedPaymentPlanService';
 import {
@@ -134,16 +135,13 @@ export const CustomerDetail: React.FC = () => {
         .filter((s) => s.status !== 'cancelled')
         .reduce((acc, s) => acc + Number(s.total_amount || 0), 0);
 
-      const activeSalesDebt = salesArr
-        .filter((s) => s.status !== 'cancelled')
-        .reduce((acc, s) => acc + Number(s.remaining_debt || 0), 0);
-
       setTotalPurchases(totPurchasesFromSales > 0 ? totPurchasesFromSales : totPurchases);
 
-      // Fail-safe Current Debt Calculation
-      const latestBal = Number(lData?.[0]?.balance || 0);
-      const calculatedDebt = Math.max(0, totPurchases - totPay);
-      const finalDebt = Math.max(latestBal, calculatedDebt, activeSalesDebt);
+      // Fail-safe Current Debt Calculation using single source of truth helper
+      const { netTotalDebt: finalDebt } = calculateNetCustomerDebt({
+        ledgerEntries: lData,
+        salesList: salesArr,
+      });
       setCurrentDebt(finalDebt);
 
       if (salesArr.length > 0) {
