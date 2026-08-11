@@ -89,6 +89,7 @@ export interface Customer {
   tax_number: string | null;
   tax_office: string | null;
   payment_term_days: number;
+  weekly_payment_target?: number;
   notes: string | null;
   active: boolean;
   created_at: string;

@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { Sale, SaleItem, PaymentSchedule, Customer, Profile } from '@/types/database.types';
+import { buildConsolidatedPaymentPlan } from '@/services/consolidatedPaymentPlanService';
 import {
   normalizeTurkishPhone,
   buildSaleWhatsAppMessage,
@@ -51,6 +52,14 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
   const [items, setItems] = useState<SaleItem[]>([]);
   const [schedules, setSchedules] = useState<PaymentSchedule[]>([]);
 
+  // Fresh Customer Accounting Metrics
+  const [netTotalDebt, setNetTotalDebt] = useState(0);
+  const [previousBalance, setPreviousBalance] = useState(0);
+  const [currentSaleAmount, setCurrentSaleAmount] = useState(0);
+  const [paymentMade, setPaymentMade] = useState(0);
+  const [allCustomerSales, setAllCustomerSales] = useState<Sale[]>([]);
+  const [allCustomerSchedules, setAllCustomerSchedules] = useState<PaymentSchedule[]>([]);
+
   useEffect(() => {
     if (isOpen && saleId) {
       const loadData = async () => {
@@ -64,26 +73,29 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
             .single();
 
           if (sErr) throw sErr;
-          setSale(sData as Sale);
+          const currentSale = sData as Sale;
+          setSale(currentSale);
 
           // 2. Fetch active business profile for dynamic business name
-          if (sData?.owner_id) {
+          if (currentSale?.owner_id) {
             const { data: pData } = await supabase
               .from('profiles')
               .select('*')
-              .eq('id', sData.owner_id)
+              .eq('id', currentSale.owner_id)
               .maybeSingle();
             setProfile(pData as Profile);
           }
 
           // 3. Fetch customer for contact info
-          if (sData?.customer_id) {
+          let custObj: Customer | null = null;
+          if (currentSale?.customer_id) {
             const { data: cData } = await supabase
               .from('customers')
               .select('*')
-              .eq('id', sData.customer_id)
+              .eq('id', currentSale.customer_id)
               .maybeSingle();
-            setCustomer(cData as Customer);
+            custObj = cData as Customer;
+            setCustomer(custObj);
           }
 
           // 4. Fetch sale items
@@ -94,7 +106,7 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
             .is('deleted_at', null);
           setItems(iData || []);
 
-          // 5. Fetch payment schedules
+          // 5. Fetch single sale schedules
           const { data: schData } = await supabase
             .from('payment_schedules')
             .select('*')
@@ -102,6 +114,43 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
             .is('deleted_at', null)
             .order('due_date', { ascending: true });
           setSchedules(schData || []);
+
+          // 6. Fresh DB Ledger Query for Exact Net Customer Debt
+          const { data: lData } = await supabase
+            .from('customer_ledger')
+            .select('balance')
+            .eq('customer_id', currentSale.customer_id)
+            .is('deleted_at', null)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          const totalDebt = lData?.[0]?.balance !== undefined ? Number(lData[0].balance) : Number(currentSale.remaining_debt || 0);
+          const saleTotal = Number(currentSale.total_amount || 0);
+          const payAmount = currentSale.payment_type === 'pesin' ? saleTotal : Number(currentSale.paid_amount || 0);
+          const prevBal = Math.max(0, totalDebt - saleTotal + payAmount);
+
+          setNetTotalDebt(totalDebt);
+          setCurrentSaleAmount(saleTotal);
+          setPaymentMade(payAmount);
+          setPreviousBalance(prevBal);
+
+          // 7. Fetch all active sales & schedules for consolidated customer plan
+          const { data: custSalesData } = await supabase
+            .from('sales')
+            .select('*')
+            .eq('customer_id', currentSale.customer_id)
+            .is('deleted_at', null)
+            .order('created_at', { ascending: false });
+
+          const { data: custSchedulesData } = await supabase
+            .from('payment_schedules')
+            .select('*')
+            .eq('customer_id', currentSale.customer_id)
+            .is('deleted_at', null)
+            .order('due_date', { ascending: true });
+
+          setAllCustomerSales((custSalesData as Sale[]) || []);
+          setAllCustomerSchedules((custSchedulesData as PaymentSchedule[]) || []);
         } catch (err: any) {
           console.error(err);
           showError(err.message || 'Belge detayları yüklenemedi.');
@@ -127,7 +176,7 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
     }
 
     try {
-      const messageText = buildSaleWhatsAppMessage(sale, items, schedules);
+      const messageText = buildSaleWhatsAppMessage(sale, items, schedules, netTotalDebt, previousBalance);
 
       await logWhatsAppShareAttempt('sales', sale.id, norm.normalized, {
         sale_number: sale.sale_number,
@@ -305,36 +354,26 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
                   </div>
                 </div>
 
-                {/* 3 Summary Cards */}
-                <div className="col-span-7 grid grid-cols-3 gap-2">
-                  <div className="bg-blue-50/60 border border-blue-100 p-3 rounded-xl text-center flex flex-col justify-center">
-                    <ShoppingCart className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-                    <span className="text-[9px] font-bold text-slate-600 uppercase">
-                      TOPLAM SATIŞ
-                    </span>
-                    <span className="text-sm font-black text-blue-600 mt-1">
-                      {formatCurrency(sale.total_amount)}
-                    </span>
+                {/* 4 Summary Accounting Cards */}
+                <div className="col-span-7 grid grid-cols-4 gap-1.5">
+                  <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-center flex flex-col justify-center">
+                    <span className="text-[9px] font-bold text-slate-500 uppercase">ÖNCEKİ BAKİYE</span>
+                    <span className="text-xs font-bold text-slate-700 mt-0.5">{formatCurrency(previousBalance)}</span>
                   </div>
 
-                  <div className="bg-emerald-50/60 border border-emerald-100 p-3 rounded-xl text-center flex flex-col justify-center">
-                    <Wallet className="w-5 h-5 text-emerald-500 mx-auto mb-1" />
-                    <span className="text-[9px] font-bold text-slate-600 uppercase">
-                      TOPLAM ÖDENEN
-                    </span>
-                    <span className="text-sm font-black text-emerald-600 mt-1">
-                      {formatCurrency(sale.paid_amount || 0)}
-                    </span>
+                  <div className="bg-blue-50/60 border border-blue-100 p-2.5 rounded-xl text-center flex flex-col justify-center">
+                    <span className="text-[9px] font-bold text-blue-700 uppercase">BUGÜNKÜ SATIŞ</span>
+                    <span className="text-xs font-black text-blue-600 mt-0.5">{formatCurrency(currentSaleAmount)}</span>
                   </div>
 
-                  <div className="bg-amber-50/60 border border-amber-100 p-3 rounded-xl text-center flex flex-col justify-center">
-                    <FileText className="w-5 h-5 text-amber-500 mx-auto mb-1" />
-                    <span className="text-[9px] font-bold text-amber-800 uppercase">
-                      KALAN BORÇ
-                    </span>
-                    <span className="text-sm font-black text-amber-600 mt-1">
-                      {formatCurrency(sale.remaining_debt || 0)}
-                    </span>
+                  <div className="bg-emerald-50/60 border border-emerald-100 p-2.5 rounded-xl text-center flex flex-col justify-center">
+                    <span className="text-[9px] font-bold text-emerald-700 uppercase">YAPILAN ÖDEME</span>
+                    <span className="text-xs font-black text-emerald-600 mt-0.5">{formatCurrency(paymentMade)}</span>
+                  </div>
+
+                  <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-center flex flex-col justify-center">
+                    <span className="text-[8.5px] font-extrabold text-amber-800 uppercase leading-tight">GÜNCEL CARİ BORÇ</span>
+                    <span className="text-xs font-black text-amber-600 mt-0.5">{formatCurrency(netTotalDebt)}</span>
                   </div>
                 </div>
               </div>
@@ -343,7 +382,7 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
               <div>
                 <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                   <Package className="w-4 h-4 text-blue-600" />
-                  <span>SATIN ALINAN ÜRÜNLER</span>
+                  <span>BUGÜNKÜ SİPARİŞ ({items.length} KALEM ÜRÜN)</span>
                 </div>
 
                 <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
@@ -370,105 +409,91 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
                     </tbody>
                     <tfoot className="bg-slate-50 font-bold border-t border-slate-200 text-xs">
                       <tr>
-                        <td colSpan={4} className="py-2.5 px-3 text-right font-bold text-slate-900">Ürün Toplamı</td>
-                        <td className="py-2.5 px-3 text-right font-black text-slate-900 text-sm">{formatCurrency(sale.total_amount)}</td>
+                        <td colSpan={4} className="py-2.5 px-3 text-right font-bold text-slate-900">Bugünkü Satış Tutarı:</td>
+                        <td className="py-2.5 px-3 text-right font-black text-blue-700 text-sm">{formatCurrency(currentSaleAmount)}</td>
                       </tr>
                     </tfoot>
                   </table>
                 </div>
               </div>
 
-              {/* 4. Weekly Payment Schedule (4 Cards Grid with Dotted Line) */}
+              {/* 4. Consolidated Payment Schedule Table */}
               <div>
                 <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Calendar className="w-4 h-4 text-blue-600" />
-                  <span>HAFTALIK ÖDEME PLANI ({schedules.length || 4} TAKSİT)</span>
+                  <span>GÜNCEL BİRLEŞİK CARİ ÖDEME PLANI</span>
                 </div>
 
-                {schedules.length === 0 ? (
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-500 italic text-center text-xs">
-                    Peşin Satış — Haftalık taksit planı bulunmamaktadır.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-4 gap-2.5 relative">
-                    {/* Dotted connecting line */}
-                    <div className="absolute top-4 left-6 right-6 border-b-2 border-dashed border-slate-200 z-0" />
+                {(() => {
+                  const plan = buildConsolidatedPaymentPlan(
+                    customer,
+                    netTotalDebt,
+                    allCustomerSales,
+                    allCustomerSchedules,
+                    customer?.weekly_payment_target
+                  );
 
-                    {schedules.map((s, idx) => (
-                      <div
-                        key={s.id}
-                        className="relative z-10 bg-slate-50/70 border border-slate-200 p-3 rounded-xl text-center space-y-1.5 shadow-sm"
-                      >
-                        <div className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center mx-auto shadow-sm">
-                          {idx + 1}
-                        </div>
-
-                        <div className="font-extrabold text-slate-900 text-xs">{idx + 1}. HAFTA</div>
-                        <div className="text-[10px] font-mono text-slate-500 font-semibold flex items-center justify-center gap-1">
-                          <Calendar className="w-3 h-3 text-slate-400" />
-                          <span>{formatDate(s.due_date)}</span>
-                        </div>
-
-                        <div className="pt-1 border-t border-slate-200/60 space-y-0.5 text-[10px]">
-                          <span className="text-slate-500 block">Ödenecek Tutar</span>
-                          <span className="font-bold text-blue-600 text-xs block">{formatCurrency(s.amount)}</span>
-                        </div>
-
-                        <div className="space-y-0.5 text-[10px]">
-                          <span className="text-slate-500 block">Ödenen Tutar</span>
-                          <span className="font-bold text-emerald-600 text-xs block">{formatCurrency(s.paid_amount || 0)}</span>
-                        </div>
-
-                        <div className="pt-1">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${
-                              s.status === 'paid'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : s.status === 'partially_paid'
-                                ? 'bg-amber-100 text-amber-800'
-                                : s.status === 'overdue'
-                                ? 'bg-rose-100 text-rose-800'
-                                : 'text-amber-600 bg-amber-50 border border-amber-200'
-                            }`}
-                          >
-                            {s.status === 'paid' && '✓ ÖDENDİ'}
-                            {s.status === 'partially_paid' && '◐ KISMİ ÖDENDİ'}
-                            {s.status === 'overdue' && '⚠️ GECİKTİ'}
-                            {s.status === 'pending' && '○ BEKLİYOR'}
-                          </span>
-                        </div>
+                  if (plan.installments.length === 0) {
+                    return (
+                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 font-bold text-center text-xs">
+                        ✓ Müşterinin ödenmemiş aktif cari borcu bulunmamaktadır.
                       </div>
-                    ))}
-                  </div>
-                )}
+                    );
+                  }
+
+                  return (
+                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-blue-600 text-white font-bold text-[11px] uppercase border-b border-blue-700">
+                          <tr>
+                            <th className="py-2 px-3">Hafta #</th>
+                            <th className="py-2 px-3">Tahmini Vade Tarihi</th>
+                            <th className="py-2 px-3 text-right">Taksit Tutarı</th>
+                            <th className="py-2 px-3 text-right">Kalan Borç Bakiyesi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-800">
+                          {plan.installments.map((inst) => (
+                            <tr key={inst.weekIndex}>
+                              <td className="py-2 px-3 font-bold text-slate-900">{inst.weekIndex}. HAFTA</td>
+                              <td className="py-2 px-3 font-mono font-medium text-slate-700">{formatDate(inst.dueDate)}</td>
+                              <td className="py-2 px-3 text-right font-extrabold text-amber-600">{formatCurrency(inst.amount)}</td>
+                              <td className="py-2 px-3 text-right font-bold text-slate-900">{formatCurrency(inst.remainingBalance)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
 
-              {/* 5. 30 Days Term Summary Strip */}
+              {/* 5. Cari Summary Strip */}
               <div className="bg-blue-50/40 border border-blue-100 p-3.5 rounded-xl flex items-center justify-between text-xs">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
                     <Clock className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-slate-900 text-sm">30 GÜNLÜK VADE</h4>
-                    <p className="text-[11px] text-slate-500 font-medium">4 Haftalık Ödeme Planı</p>
+                    <h4 className="font-extrabold text-slate-900 text-sm">GÜNCEL CARİ ÖZETİ</h4>
+                    <p className="text-[11px] text-slate-500 font-medium">Haftalık Birleşik Ödeme Planı</p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-6 text-right">
                   <div>
-                    <span className="text-[10px] text-slate-500 font-medium block">Toplam Tutar</span>
-                    <span className="font-bold text-blue-600 text-sm">{formatCurrency(sale.total_amount)}</span>
+                    <span className="text-[10px] text-slate-500 font-medium block">Bugünkü Satış</span>
+                    <span className="font-bold text-blue-600 text-sm">{formatCurrency(currentSaleAmount)}</span>
                   </div>
 
                   <div className="border-l border-slate-200 pl-6">
-                    <span className="text-[10px] text-slate-500 font-medium block">Ödenen Tutar</span>
-                    <span className="font-bold text-emerald-600 text-sm">{formatCurrency(sale.paid_amount || 0)}</span>
+                    <span className="text-[10px] text-slate-500 font-medium block">Önceki Bakiye</span>
+                    <span className="font-bold text-slate-700 text-sm">{formatCurrency(previousBalance)}</span>
                   </div>
 
                   <div className="border-l border-slate-200 pl-6">
-                    <span className="text-[10px] text-slate-500 font-medium block">Kalan Borç</span>
-                    <span className="font-black text-amber-600 text-sm">{formatCurrency(sale.remaining_debt || 0)}</span>
+                    <span className="text-[10px] text-slate-500 font-medium block">Güncel Cari Borç</span>
+                    <span className="font-black text-amber-600 text-sm">{formatCurrency(netTotalDebt)}</span>
                   </div>
                 </div>
               </div>

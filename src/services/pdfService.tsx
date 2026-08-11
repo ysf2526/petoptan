@@ -1,7 +1,9 @@
 import React from 'react';
 import { pdf } from '@react-pdf/renderer';
+import { supabase } from '@/lib/supabase';
 import { Sale, SaleItem, PaymentSchedule, Customer, Profile } from '@/types/database.types';
 import { SalesDocumentPdf } from '@/lib/pdf/SalesDocumentPdf';
+import { buildConsolidatedPaymentPlan } from '@/services/consolidatedPaymentPlanService';
 
 /**
  * Native PDF Generator Service using @react-pdf/renderer
@@ -24,6 +26,7 @@ export function downloadPdfFile(file: File | Blob, filename: string) {
 
 /**
  * Compiles a Sales Document into a genuine PDF binary File object (application/pdf).
+ * Fetches fresh DB customer balance & consolidated payment plan before compiling PDF.
  */
 export async function generateSalesPdfFile(
   sale: Sale,
@@ -32,15 +35,61 @@ export async function generateSalesPdfFile(
   customer: Customer | null,
   profile: Profile | null
 ): Promise<File> {
+  const customerId = sale.customer_id;
+
+  // 1. Fetch fresh customer ledger balance directly from DB to avoid state cache bugs
+  const { data: lData } = await supabase
+    .from('customer_ledger')
+    .select('balance')
+    .eq('customer_id', customerId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  const netTotalDebt = lData?.[0]?.balance !== undefined ? Number(lData[0].balance) : Number(sale.remaining_debt || 0);
+
+  // 2. Fetch fresh customer sales and payment schedules for consolidated plan
+  const { data: salesData } = await supabase
+    .from('sales')
+    .select('*')
+    .eq('customer_id', customerId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+
+  const { data: schedulesData } = await supabase
+    .from('payment_schedules')
+    .select('*')
+    .eq('customer_id', customerId)
+    .is('deleted_at', null)
+    .order('due_date', { ascending: true });
+
+  // 3. Compute accurate financial metrics
+  const currentSaleAmount = Number(sale.total_amount || 0);
+  const paymentMade = sale.payment_type === 'pesin' ? currentSaleAmount : Number(sale.paid_amount || 0);
+  const previousBalance = Math.max(0, netTotalDebt - currentSaleAmount + paymentMade);
+
+  // 4. Generate consolidated payment plan over netTotalDebt
+  const plan = buildConsolidatedPaymentPlan(
+    customer,
+    netTotalDebt,
+    (salesData as Sale[]) || [],
+    (schedulesData as PaymentSchedule[]) || [],
+    customer?.weekly_payment_target
+  );
+
   const filename = `Satis_Belgesi_${sale.sale_number}.pdf`;
 
-  // Render React PDF component tree into PDF blob using React.createElement for robust TS/TSX compatibility
+  // Render React PDF component tree into PDF blob using React.createElement
   const element = React.createElement(SalesDocumentPdf, {
     sale,
     items,
-    schedules,
     customer,
     profile,
+    previousBalance,
+    currentSaleAmount,
+    paymentMade,
+    netTotalDebt,
+    consolidatedInstallments: plan.installments,
   });
 
   const pdfInstance = pdf(element as any);
@@ -69,7 +118,7 @@ export async function shareOrDownloadSalesPdf(
   phone: string,
   messageText: string
 ): Promise<{ method: 'native_share' | 'whatsapp_web_download'; pdfFile: File }> {
-  // Generate genuine PDF file
+  // Generate genuine PDF file with fresh DB data
   const pdfFile = await generateSalesPdfFile(sale, items, schedules, customer, profile);
 
   // Always trigger direct download of the PDF file

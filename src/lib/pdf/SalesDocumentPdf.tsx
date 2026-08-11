@@ -1,7 +1,8 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
-import { Sale, SaleItem, PaymentSchedule, Customer, Profile } from '@/types/database.types';
+import { Sale, SaleItem, Customer, Profile } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/utils/formatters';
+import { ConsolidatedInstallment } from '@/services/consolidatedPaymentPlanService';
 
 // Register Turkish-compatible Roboto font
 Font.register({
@@ -222,17 +223,25 @@ const styles = StyleSheet.create({
 interface SalesDocumentPdfProps {
   sale: Sale;
   items: SaleItem[];
-  schedules: PaymentSchedule[];
   customer: Customer | null;
   profile: Profile | null;
+  previousBalance: number;
+  currentSaleAmount: number;
+  paymentMade: number;
+  netTotalDebt: number;
+  consolidatedInstallments: ConsolidatedInstallment[];
 }
 
 export const SalesDocumentPdf: React.FC<SalesDocumentPdfProps> = ({
   sale,
   items,
-  schedules,
   customer,
   profile,
+  previousBalance,
+  currentSaleAmount,
+  paymentMade,
+  netTotalDebt,
+  consolidatedInstallments,
 }) => {
   const businessTitle = profile?.business_name?.trim() || 'PETSHOP TOPTAN';
   const businessPhone = profile?.phone?.trim() || '0532 000 00 00';
@@ -252,11 +261,11 @@ export const SalesDocumentPdf: React.FC<SalesDocumentPdfProps> = ({
           </View>
 
           <View style={styles.docBadge}>
-            <Text style={styles.docTitle}>SATIŞ BELGESİ</Text>
+            <Text style={styles.docTitle}>SATIŞ & CARİ EKSTRE BELGESİ</Text>
             <Text style={styles.docMeta}>Satış No: {sale.sale_number}</Text>
             <Text style={styles.docMeta}>Tarih: {formatDate(sale.created_at)}</Text>
             <Text style={styles.docMeta}>
-              Vade: {sale.payment_type === 'pesin' ? 'Peşin Satış' : `Vadeli (${sale.term_days || 30} Gün)`}
+              Vade Tipi: {sale.payment_type === 'pesin' ? 'Peşin Satış' : `Vadeli (${sale.term_days || 30} Gün)`}
             </Text>
           </View>
         </View>
@@ -277,24 +286,8 @@ export const SalesDocumentPdf: React.FC<SalesDocumentPdfProps> = ({
           )}
         </View>
 
-        {/* 3. Financial Summary Strip */}
-        <View style={styles.summaryStrip}>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>TOPLAM SATIŞ</Text>
-            <Text style={[styles.summaryVal, { color: '#1e40af' }]}>{formatCurrency(sale.total_amount)}</Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>TOPLAM ÖDENEN</Text>
-            <Text style={[styles.summaryVal, { color: '#15803d' }]}>{formatCurrency(sale.paid_amount || 0)}</Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>KALAN BORÇ</Text>
-            <Text style={[styles.summaryVal, { color: '#d97706' }]}>{formatCurrency(sale.remaining_debt || 0)}</Text>
-          </View>
-        </View>
-
-        {/* 4. Products Table */}
-        <Text style={styles.sectionHeader}>SATIN ALINAN ÜRÜNLER ({items.length})</Text>
+        {/* 3. Products Table (BUGÜNKÜ SİPARİŞ) */}
+        <Text style={styles.sectionHeader}>BUGÜNKÜ SİPARİŞ ({items.length} KALEM ÜRÜN)</Text>
         <View style={styles.table}>
           <View style={styles.tHead}>
             <Text style={styles.colName}>Ürün Adı</Text>
@@ -313,56 +306,58 @@ export const SalesDocumentPdf: React.FC<SalesDocumentPdfProps> = ({
             </View>
           ))}
           <View style={styles.tFoot}>
-            <Text style={{ flex: 6.5, textAlign: 'right' }}>Ürün Toplamı:</Text>
-            <Text style={{ flex: 1.5, textAlign: 'right' }}>{formatCurrency(sale.total_amount)}</Text>
+            <Text style={{ flex: 6.5, textAlign: 'right' }}>Bugünkü Satış Tutarı:</Text>
+            <Text style={{ flex: 1.5, textAlign: 'right', fontSize: 9 }}>{formatCurrency(currentSaleAmount)}</Text>
           </View>
         </View>
 
-        {/* 5. Weekly Payment Schedule Table */}
-        <Text style={styles.sectionHeader}>HAFTALIK ÖDEME PLANISI ({schedules.length} TAKSİT)</Text>
+        {/* 4. Financial Accounting Strip (CARİ DURUM ÖZETİ) */}
+        <Text style={styles.sectionHeader}>GÜNCEL CARİ DURUM ÖZETİ</Text>
+        <View style={styles.summaryStrip}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>ÖNCEKİ BAKİYE</Text>
+            <Text style={[styles.summaryVal, { color: '#475569' }]}>{formatCurrency(previousBalance)}</Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>BUGÜNKÜ SATIŞ</Text>
+            <Text style={[styles.summaryVal, { color: '#1e40af' }]}>{formatCurrency(currentSaleAmount)}</Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>YAPILAN ÖDEME</Text>
+            <Text style={[styles.summaryVal, { color: '#15803d' }]}>{formatCurrency(paymentMade)}</Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <Text style={[styles.summaryLabel, { color: '#b45309' }]}>GÜNCEL TOPLAM CARİ BORÇ (KALAN BORÇ)</Text>
+            <Text style={[styles.summaryVal, { color: '#d97706', fontSize: 11 }]}>{formatCurrency(netTotalDebt)}</Text>
+          </View>
+        </View>
+
+        {/* 5. Weekly Consolidated Payment Schedule Table */}
+        <Text style={styles.sectionHeader}>GÜNCEL BİRLEŞİK CARİ ÖDEME PLANI ({consolidatedInstallments.length} TAKSİT)</Text>
         <View style={styles.table}>
           <View style={styles.tHead}>
-            <Text style={{ flex: 1.5 }}>Taksit #</Text>
-            <Text style={{ flex: 2 }}>Vade Tarihi</Text>
-            <Text style={{ flex: 2, textAlign: 'right' }}>Taksit Tutarı</Text>
-            <Text style={{ flex: 2, textAlign: 'right' }}>Ödenen Tutar</Text>
-            <Text style={{ flex: 2, textAlign: 'center' }}>Durum</Text>
+            <Text style={{ flex: 1.5 }}>Hafta #</Text>
+            <Text style={{ flex: 2.5 }}>Tahmini Vade Tarihi</Text>
+            <Text style={{ flex: 2.5, textAlign: 'right' }}>Taksit Tutarı</Text>
+            <Text style={{ flex: 3, textAlign: 'right' }}>Kalan Borç Bakiyesi</Text>
           </View>
-          {schedules.length === 0 ? (
+          {consolidatedInstallments.length === 0 ? (
             <View style={styles.tRow}>
-              <Text style={{ flex: 9.5, textAlign: 'center', color: '#64748b' }}>
-                Peşin Satış — Haftalık taksit planı bulunmamaktadır.
+              <Text style={{ flex: 9.5, textAlign: 'center', color: '#15803d', fontWeight: 'bold' }}>
+                ✓ Müşterinin ödenmemiş aktif cari borcu bulunmamaktadır.
               </Text>
             </View>
           ) : (
-            schedules.map((s, idx) => (
-              <View key={s.id} style={styles.tRow}>
-                <Text style={{ flex: 1.5, fontWeight: 'bold' }}>{idx + 1}. HAFTA</Text>
-                <Text style={{ flex: 2 }}>{formatDate(s.due_date)}</Text>
-                <Text style={{ flex: 2, textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(s.amount)}</Text>
-                <Text style={{ flex: 2, textAlign: 'right', color: '#15803d' }}>{formatCurrency(s.paid_amount || 0)}</Text>
-                <View style={{ flex: 2, alignItems: 'center' }}>
-                  <Text
-                    style={[
-                      styles.scheduleStatus,
-                      s.status === 'paid'
-                        ? { backgroundColor: '#dcfce7', color: '#166534' }
-                        : s.status === 'partially_paid'
-                        ? { backgroundColor: '#fef3c7', color: '#92400e' }
-                        : s.status === 'overdue'
-                        ? { backgroundColor: '#ffe4e6', color: '#9f1239' }
-                        : { backgroundColor: '#f1f5f9', color: '#475569' },
-                    ]}
-                  >
-                    {s.status === 'paid'
-                      ? '✓ ÖDENDİ'
-                      : s.status === 'partially_paid'
-                      ? 'KISMİ ÖDENDİ'
-                      : s.status === 'overdue'
-                      ? 'GECİKTİ'
-                      : 'BEKLİYOR'}
-                  </Text>
-                </View>
+            consolidatedInstallments.map((inst) => (
+              <View key={inst.weekIndex} style={styles.tRow}>
+                <Text style={{ flex: 1.5, fontWeight: 'bold' }}>{inst.weekIndex}. HAFTA</Text>
+                <Text style={{ flex: 2.5 }}>{formatDate(inst.dueDate)}</Text>
+                <Text style={{ flex: 2.5, textAlign: 'right', fontWeight: 'bold', color: '#b45309' }}>
+                  {formatCurrency(inst.amount)}
+                </Text>
+                <Text style={{ flex: 3, textAlign: 'right', fontWeight: 'bold', color: '#0f172a' }}>
+                  {formatCurrency(inst.remainingBalance)}
+                </Text>
               </View>
             ))
           )}
@@ -371,7 +366,7 @@ export const SalesDocumentPdf: React.FC<SalesDocumentPdfProps> = ({
         {/* 6. Legal Disclaimer */}
         <View style={styles.warningBox}>
           <Text style={styles.warningText}>
-            Bu belge cari hesap ve ödeme planı bilgilendirme amacıyla otomatik olarak oluşturulmuştur.
+            Bu belge güncel cari hesap ve haftalık ödeme planı bilgilendirmesi amacıyla oluşturulmuştur.
           </Text>
           <Text style={styles.warningBold}>RESMİ FATURA / E-ARŞİV FATURA YERİNE GEÇMEZ.</Text>
         </View>

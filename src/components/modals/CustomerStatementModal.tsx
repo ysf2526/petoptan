@@ -318,49 +318,47 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 </div>
               </div>
 
-              {/* Upcoming Schedules Table */}
+              {/* Consolidated Payment Plan Table */}
               <div>
                 <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                   <Calendar className="w-4 h-4 text-purple-600" />
-                  <span>YAKLAŞAN VADELER & ÖDEME TAKVİMİ</span>
+                  <span>GÜNCEL BİRLEŞİK CARİ ÖDEME PLANI</span>
                 </div>
 
-                {upcomingSchedules.length === 0 ? (
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-500 italic text-center text-xs">
-                    Ödeme bekleyen aktif taksit bulunmamaktadır.
-                  </div>
-                ) : (
-                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-purple-600 text-white font-bold text-[11px] uppercase border-b border-purple-700">
-                        <tr>
-                          <th className="py-2.5 px-3">Vade Tarihi</th>
-                          <th className="py-2.5 px-3 text-right">Tutar</th>
-                          <th className="py-2.5 px-3 text-right">Kalan Tutar</th>
-                          <th className="py-2.5 px-3 text-center">Durum</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-800">
-                        {upcomingSchedules.slice(0, 6).map((s) => (
-                          <tr key={s.id}>
-                            <td className="py-2.5 px-3 font-mono font-semibold text-slate-900">{formatDate(s.due_date)}</td>
-                            <td className="py-2.5 px-3 text-right font-medium text-slate-700">{formatCurrency(s.amount)}</td>
-                            <td className="py-2.5 px-3 text-right font-bold text-amber-600">{formatCurrency(s.remaining_amount)}</td>
-                            <td className="py-2.5 px-3 text-center">
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${
-                                  s.status === 'overdue' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
-                                }`}
-                              >
-                                {s.status === 'overdue' ? '⚠️ GECİKTİ' : '○ BEKLİYOR'}
-                              </span>
-                            </td>
+                {(() => {
+                  const plan = buildConsolidatedPaymentPlan(customer, currentDebt, [], upcomingSchedules, customer?.weekly_payment_target);
+                  if (plan.installments.length === 0) {
+                    return (
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-500 italic text-center text-xs">
+                        Ödeme bekleyen aktif cari borç bulunmamaktadır.
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-purple-600 text-white font-bold text-[11px] uppercase border-b border-purple-700">
+                          <tr>
+                            <th className="py-2 px-3">Hafta #</th>
+                            <th className="py-2 px-3">Tahmini Vade Tarihi</th>
+                            <th className="py-2 px-3 text-right">Taksit Tutarı</th>
+                            <th className="py-2 px-3 text-right">Kalan Borç Bakiyesi</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-800">
+                          {plan.installments.map((inst) => (
+                            <tr key={inst.weekIndex}>
+                              <td className="py-2 px-3 font-bold text-slate-900">{inst.weekIndex}. HAFTA</td>
+                              <td className="py-2 px-3 font-mono font-medium text-slate-700">{formatDate(inst.dueDate)}</td>
+                              <td className="py-2 px-3 text-right font-extrabold text-amber-600">{formatCurrency(inst.amount)}</td>
+                              <td className="py-2 px-3 text-right font-bold text-slate-800">{formatCurrency(inst.remainingBalance)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Last Sale Info */}

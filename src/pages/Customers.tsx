@@ -51,23 +51,26 @@ export const Customers: React.FC = () => {
 
       if (cError) throw cError;
 
-      // 2. Fetch Latest Ledger Balance per Customer
+      // 2. Fetch Customer Ledger to compute net balance per Customer
       const { data: lData } = await supabase
         .from('customer_ledger')
-        .select('customer_id, balance, created_at')
+        .select('customer_id, debit, credit, balance, created_at')
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
-      const balanceMap: Record<string, number> = {};
+      const latestBalMap: Record<string, number> = {};
+      const netDebtMap: Record<string, number> = {};
+
       lData?.forEach((l) => {
-        if (balanceMap[l.customer_id] === undefined) {
-          balanceMap[l.customer_id] = Number(l.balance || 0);
+        if (latestBalMap[l.customer_id] === undefined) {
+          latestBalMap[l.customer_id] = Number(l.balance || 0);
         }
+        netDebtMap[l.customer_id] = (netDebtMap[l.customer_id] || 0) + Number(l.debit || 0) - Number(l.credit || 0);
       });
 
       const listWithBal = (cData || []).map((c) => ({
         ...c,
-        current_balance: balanceMap[c.id] || 0,
+        current_balance: (netDebtMap[c.id] !== undefined && netDebtMap[c.id] > 0) ? netDebtMap[c.id] : (latestBalMap[c.id] || 0),
       }));
 
       setCustomers(listWithBal);

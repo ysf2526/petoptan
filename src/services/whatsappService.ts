@@ -43,12 +43,15 @@ export function normalizeTurkishPhone(phone?: string | null): PhoneNormalization
 export function buildSaleWhatsAppMessage(
   sale: Sale,
   items: SaleItem[],
-  schedules: PaymentSchedule[]
+  schedules: PaymentSchedule[],
+  netTotalDebt?: number,
+  previousBalance?: number
 ): string {
   const saleDateFormatted = formatDate(sale.created_at);
   const totalStr = formatCurrency(sale.total_amount);
   const paidStr = formatCurrency(sale.paid_amount || 0);
-  const remainingStr = formatCurrency(sale.remaining_debt || 0);
+  const remainingStr = netTotalDebt !== undefined ? formatCurrency(netTotalDebt) : formatCurrency(sale.remaining_debt || 0);
+  const prevBalStr = previousBalance !== undefined ? formatCurrency(previousBalance) : null;
 
   let scheduleLines = '';
   if (schedules && schedules.length > 0) {
@@ -69,18 +72,17 @@ export function buildSaleWhatsAppMessage(
 
   return `Merhaba ${sale.customer_name},
 
-Bugünkü ürün teslimatınıza ait satış ve ödeme planı bilgilendirme belgenizi aşağıda paylaşıyoruz.
+Bugünkü ürün teslimatınıza ait satış ve güncel cari borç özet bilgilendirme belgenizi aşağıda paylaşıyoruz.
 
 📋 Satış No: ${sale.sale_number}
 📅 Satış Tarihi: ${saleDateFormatted}
-💰 Toplam Tutar: ${totalStr}
-💳 Ödenen: ${paidStr}
-⌛ Kalan Borç: ${remainingStr}
+🛍️ Bugünkü Satış: ${totalStr}
+${prevBalStr !== null ? `📊 Önceki Bakiye: ${prevBalStr}\n` : ''}🔴 GÜNCEL TOPLAM CARİ BORÇ: ${remainingStr}
 
 🗓️ Haftalık Ödeme Planınız:
 ${scheduleLines}
 
-Belgenizde tüm ürün detayları ve ödeme planı yer almaktadır.
+Ekli PDF belgenizde tüm detaylı ürün listesi ve cari hesabınız yer almaktadır.
 
 Teşekkür ederiz.`;
 }

@@ -338,7 +338,7 @@ export async function calculateBusinessAssistantInsights(): Promise<BusinessAssi
   // ----------------------------------------------------
   const { data: allSaleItems } = await supabase
     .from('sale_items')
-    .select('product_name, quantity, total_amount, purchase_price_snapshot, created_at')
+    .select('product_id, product_name, quantity, total_amount, purchase_price_snapshot, sale_price_snapshot, created_at')
     .gte('created_at', past30DaysStr)
     .is('deleted_at', null);
 
@@ -435,6 +435,88 @@ export async function calculateBusinessAssistantInsights(): Promise<BusinessAssi
         });
       }
     });
+  }
+
+  // ----------------------------------------------------
+  // MODULE 8: BELOW COST SALES & DISCOUNT ANALYSIS
+  // ----------------------------------------------------
+  if (allSaleItems && allSaleItems.length > 0 && products) {
+    const productStdPriceMap = new Map<string, number>(
+      products.map((p) => [p.id, Number(p.sale_price || 0)])
+    );
+
+    let totalLossAmount = 0;
+    let totalLossQty = 0;
+    const lossByProduct = new Map<string, { qty: number; loss: number }>();
+
+    let totalDiscountAmount = 0;
+    let totalDiscountQty = 0;
+    const discountByProduct = new Map<string, { qty: number; discount: number }>();
+
+    allSaleItems.forEach((it) => {
+      const q = Number(it.quantity || 0);
+      const sp = Number(it.sale_price_snapshot || 0);
+      const cp = Number(it.purchase_price_snapshot || 0);
+      const stdPrice = productStdPriceMap.get(it.product_id) || sp;
+
+      if (sp < cp && cp > 0) {
+        // Real Below-Cost Loss
+        const loss = (cp - sp) * q;
+        totalLossAmount += loss;
+        totalLossQty += q;
+
+        const prev = lossByProduct.get(it.product_name) || { qty: 0, loss: 0 };
+        lossByProduct.set(it.product_name, {
+          qty: prev.qty + q,
+          loss: prev.loss + loss,
+        });
+      } else if (stdPrice > sp && sp >= cp) {
+        // Profitable Sale with Customer Special Discount
+        const discount = (stdPrice - sp) * q;
+        totalDiscountAmount += discount;
+        totalDiscountQty += q;
+
+        const prev = discountByProduct.get(it.product_name) || { qty: 0, discount: 0 };
+        discountByProduct.set(it.product_name, {
+          qty: prev.qty + q,
+          discount: prev.discount + discount,
+        });
+      }
+    });
+
+    // 1. Real Loss Warning (Only if sale price was strictly below purchase cost)
+    if (totalLossQty > 0 && totalLossAmount > 0) {
+      const worstProduct = Array.from(lossByProduct.entries()).sort((a, b) => b[1].loss - a[1].loss)[0];
+
+      insights.push({
+        id: 'warning-below-cost-sales',
+        category: 'FINANCIAL_HEALTH',
+        priority: 'WARNING',
+        title: `Zararına Yapılan Satış İkazı (${totalLossQty} Adet Ürün)`,
+        description: `Sistemde toplam ${totalLossQty} adet ürün alış maliyetinin altında satıldı. Zarara en çok neden olan ürün: "${worstProduct ? worstProduct[0] : ''}".`,
+        whyExplanation: `Toplam Zarar: -${formatCurrency(totalLossAmount)}. Zarar veren ürün dökümü: ${worstProduct ? worstProduct[0] + ' (' + worstProduct[1].qty + ' adet, -' + formatCurrency(worstProduct[1].loss) + ' zarar)' : ''}.`,
+        metricPrimary: `-${formatCurrency(totalLossAmount)} Zarar`,
+        actionType: 'VIEW_SALES',
+        timeframe: 'MONTH',
+      });
+    }
+
+    // 2. Customer Special Discount Report (When sold above cost but below standard price)
+    if (totalDiscountQty > 0 && totalDiscountAmount > 0) {
+      const topDiscountedProd = Array.from(discountByProduct.entries()).sort((a, b) => b[1].discount - a[1].discount)[0];
+
+      insights.push({
+        id: 'opportunity-customer-discounts',
+        category: 'CUSTOMER',
+        priority: 'OPPORTUNITY',
+        title: `🏷️ Müşterilere Özel İndirim Analizi (${formatCurrency(totalDiscountAmount)} İndirim)`,
+        description: `Son 30 gün içinde standart liste fiyatı üzerinden toplam ${formatCurrency(totalDiscountAmount)} müşteri indirimi yapıldı. Tüm indirimli satışlar maliyetin üzerinde kârlı olarak tamamlandı. En çok indirim yapılan ürün: "${topDiscountedProd ? topDiscountedProd[0] : ''}".`,
+        whyExplanation: `Toplam Yapılan İndirim: ${formatCurrency(totalDiscountAmount)}. En çok indirim sağlanan ürün: ${topDiscountedProd ? topDiscountedProd[0] + ' (' + topDiscountedProd[1].qty + ' adet, ' + formatCurrency(topDiscountedProd[1].discount) + ' indirim)' : ''}.`,
+        metricPrimary: `${formatCurrency(totalDiscountAmount)} İndirim Yapıldı`,
+        actionType: 'VIEW_SALES',
+        timeframe: 'MONTH',
+      });
+    }
   }
 
   // Sort insights by priority order: CRITICAL -> IMPORTANT -> WARNING -> OPPORTUNITY

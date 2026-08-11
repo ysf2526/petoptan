@@ -1,9 +1,14 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { useToast } from '@/context/ToastContext';
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/formatters';
-import { Customer, CustomerLedger } from '@/types/database.types';
+import { Customer, CustomerLedger, Sale, PaymentSchedule } from '@/types/database.types';
 import { LayoutContextType } from '@/components/layout/Layout';
+import {
+  buildConsolidatedPaymentPlan,
+  ConsolidatedPaymentPlanSummary,
+} from '@/services/consolidatedPaymentPlanService';
 import {
   Users,
   ArrowLeft,
@@ -17,6 +22,11 @@ import {
   BookOpen,
   DollarSign,
   Send,
+  AlertTriangle,
+  Clock,
+  Target,
+  CheckCircle2,
+  Save,
 } from 'lucide-react';
 
 interface PurchaseHistoryItem {
@@ -32,9 +42,11 @@ interface PurchaseHistoryItem {
 export const CustomerDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
   const { openPaymentModal, openNewSaleModal, openCustomerStatementModal } = useOutletContext<LayoutContextType>();
 
   const [loading, setLoading] = useState(true);
+  const [savingTarget, setSavingTarget] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
 
   // Metrics
@@ -45,10 +57,13 @@ export const CustomerDetail: React.FC = () => {
   const [dueThisWeek, setDueThisWeek] = useState(0);
   const [lastPurchaseDate, setLastPurchaseDate] = useState<string | null>(null);
   const [lastPaymentDate, setLastPaymentDate] = useState<string | null>(null);
+  const [weeklyTargetInput, setWeeklyTargetInput] = useState<number>(0);
 
   // Lists
   const [purchasedProducts, setPurchasedProducts] = useState<PurchaseHistoryItem[]>([]);
   const [ledgerEntries, setLedgerEntries] = useState<CustomerLedger[]>([]);
+  const [salesList, setSalesList] = useState<Sale[]>([]);
+  const [paymentSchedules, setPaymentSchedules] = useState<PaymentSchedule[]>([]);
 
   const fetchCustomerDetails = useCallback(async () => {
     if (!id) return;
@@ -56,7 +71,9 @@ export const CustomerDetail: React.FC = () => {
     try {
       // 1. Customer record
       const { data: cData } = await supabase.from('customers').select('*').eq('id', id).single();
-      setCustomer(cData as Customer);
+      const cust = cData as Customer;
+      setCustomer(cust);
+      setWeeklyTargetInput(Number(cust?.weekly_payment_target || 0));
 
       const todayStr = new Date().toISOString().split('T')[0];
       const nextWeekDate = new Date();
@@ -72,22 +89,27 @@ export const CustomerDetail: React.FC = () => {
         .order('created_at', { ascending: false });
 
       setLedgerEntries(lData || []);
-      const latestBal = Number(lData?.[0]?.balance || 0);
-      setCurrentDebt(latestBal);
 
-      // Sum of debit vs credit
-      const totPurchases = lData?.reduce((acc, curr) => acc + Number(curr.debit || 0), 0) || 0;
-      const totPay = lData?.reduce((acc, curr) => acc + Number(curr.credit || 0), 0) || 0;
+      // Sum of actual sales purchases (BORÇ) vs real cash payments (ÖDEME)
+      const totPurchases = lData?.filter((curr) => curr.movement_type === 'BORÇ').reduce((acc, curr) => acc + Number(curr.debit || 0), 0) || 0;
+      const totPay = lData?.filter((curr) => curr.movement_type === 'ÖDEME').reduce((acc, curr) => acc + Number(curr.credit || 0), 0) || 0;
       setTotalPurchases(totPurchases);
       setTotalPayments(totPay);
 
-      // 3. Payment Schedules (Overdue & Due this week)
+      // Current Debt is net remaining debt (totPurchases - totPay) or latest running balance
+      const latestBal = Number(lData?.[0]?.balance || 0);
+      const calculatedDebt = Math.max(0, totPurchases - totPay);
+      setCurrentDebt(latestBal > 0 ? latestBal : calculatedDebt);
+
+      // 3. Payment Schedules
       const { data: sData } = await supabase
         .from('payment_schedules')
-        .select('remaining_amount, due_date, status')
+        .select('*')
         .eq('customer_id', id)
-        .in('status', ['pending', 'partially_paid', 'overdue'])
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .order('due_date', { ascending: true });
+
+      setPaymentSchedules((sData as PaymentSchedule[]) || []);
 
       let ovD = 0;
       let dueW = 0;
@@ -102,18 +124,27 @@ export const CustomerDetail: React.FC = () => {
       setOverdueDebt(ovD);
       setDueThisWeek(dueW);
 
-      // 4. Last Purchase Date & Sales History items
+      // 4. Sales History items & Total Sales
       const { data: salesData } = await supabase
         .from('sales')
-        .select('id, sale_number, created_at')
+        .select('*')
         .eq('customer_id', id)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
-      if (salesData && salesData.length > 0) {
-        setLastPurchaseDate(salesData[0].created_at);
+      const salesArr = (salesData as Sale[]) || [];
+      setSalesList(salesArr);
 
-        const saleIds = salesData.map((s) => s.id);
+      const totPurchasesFromSales = salesArr
+        .filter((s) => s.status !== 'cancelled')
+        .reduce((acc, s) => acc + Number(s.total_amount || 0), 0);
+
+      setTotalPurchases(totPurchasesFromSales > 0 ? totPurchasesFromSales : totPurchases);
+
+      if (salesArr.length > 0) {
+        setLastPurchaseDate(salesArr[0].created_at);
+
+        const saleIds = salesArr.map((s) => s.id);
         const { data: itemsData } = await supabase
           .from('sale_items')
           .select('sale_id, product_name, quantity, unit, total_amount, created_at')
@@ -121,7 +152,7 @@ export const CustomerDetail: React.FC = () => {
           .is('deleted_at', null)
           .order('created_at', { ascending: false });
 
-        const saleNumMap = new Map(salesData.map((s) => [s.id, s.sale_number]));
+        const saleNumMap = new Map(salesArr.map((s) => [s.id, s.sale_number]));
 
         const history: PurchaseHistoryItem[] = (itemsData || []).map((it) => ({
           sale_id: it.sale_id,
@@ -159,6 +190,35 @@ export const CustomerDetail: React.FC = () => {
     fetchCustomerDetails();
   }, [fetchCustomerDetails]);
 
+  // Consolidated Dynamic Payment Plan Calculation
+  const consolidatedPlan: ConsolidatedPaymentPlanSummary = useMemo(() => {
+    return buildConsolidatedPaymentPlan(customer, currentDebt, salesList, paymentSchedules, weeklyTargetInput);
+  }, [customer, currentDebt, salesList, paymentSchedules, weeklyTargetInput]);
+
+  const handleSaveWeeklyTarget = async () => {
+    if (!id) return;
+    setSavingTarget(true);
+    try {
+      const { error } = await supabase.rpc('update_customer_weekly_target', {
+        p_customer_id: id,
+        p_weekly_target: Math.max(0, weeklyTargetInput),
+      });
+
+      if (error) {
+        showError(error.message);
+      } else {
+        showSuccess(`Haftalık ödeme hedefi (${formatCurrency(weeklyTargetInput)}) güncellendi.`);
+        if (customer) {
+          setCustomer({ ...customer, weekly_payment_target: weeklyTargetInput });
+        }
+      }
+    } catch (err: any) {
+      showError(err.message || 'Hedef güncellenemedi.');
+    } finally {
+      setSavingTarget(false);
+    }
+  };
+
   if (loading || !customer) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400">
@@ -167,6 +227,8 @@ export const CustomerDetail: React.FC = () => {
       </div>
     );
   }
+
+  const activeSalesCount = salesList.filter((s) => s.status !== 'cancelled').length;
 
   return (
     <div className="space-y-6 pb-8">
@@ -244,6 +306,125 @@ export const CustomerDetail: React.FC = () => {
             <div>Alış: <span className="text-white">{formatCurrency(totalPurchases)}</span></div>
             <div>Tahsilat: <span className="text-emerald-400">{formatCurrency(totalPayments)}</span></div>
           </div>
+        </div>
+      </div>
+
+      {/* CONSOLIDATED CARİ OVERVIEW & DYNAMIC PAYMENT PLAN SECTION */}
+      <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-5 shadow-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-600/20 border border-brand-500/30 flex items-center justify-center text-brand-400 shrink-0">
+              <Target className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white tracking-tight">
+                GÜNCEL CARİ BORÇ VE BİRLEŞİK ÖDEME PLANI
+              </h3>
+              <p className="text-xs text-slate-400">
+                Müşterinin tüm vadeli satışları tek cari borç ödeme planında birleştirilmiştir.
+              </p>
+            </div>
+          </div>
+
+          {/* Haftalık Ödeme Hedefi Düzenleyici */}
+          <div className="flex items-center gap-2 bg-slate-950 p-2 rounded-xl border border-slate-800">
+            <span className="text-xs text-slate-400 font-medium whitespace-nowrap">Haftalık Ödeme Hedefi:</span>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                step="500"
+                min={0}
+                value={weeklyTargetInput}
+                onChange={(e) => setWeeklyTargetInput(Number(e.target.value))}
+                className="w-28 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-extrabold text-white text-right outline-none focus:border-brand-500"
+              />
+              <span className="text-xs text-slate-400 font-bold">TL</span>
+              <button
+                type="button"
+                onClick={handleSaveWeeklyTarget}
+                disabled={savingTarget}
+                className="p-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs transition-all flex items-center gap-1 disabled:opacity-50 ml-1"
+                title="Haftalık Hedefi Kaydet"
+              >
+                {savingTarget ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic Plan Summary Metrics */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs">
+          <div>
+            <span className="text-slate-500 block">Toplam Cari Borç</span>
+            <span className="text-base font-black text-amber-400 block mt-0.5">{formatCurrency(currentDebt)}</span>
+          </div>
+
+          <div>
+            <span className="text-slate-500 block">Haftalık Taksit</span>
+            <span className="text-base font-bold text-white block mt-0.5">{formatCurrency(consolidatedPlan.weeklyTarget)}</span>
+          </div>
+
+          <div>
+            <span className="text-slate-500 block">Tahmini Kapanış</span>
+            <span className="text-base font-bold text-brand-400 block mt-0.5">{consolidatedPlan.estimatedWeeksToClose} Hafta</span>
+          </div>
+
+          <div>
+            <span className="text-slate-500 block">Aktif Vadeli Satış Sayısı</span>
+            <span className="text-base font-bold text-slate-300 block mt-0.5">{activeSalesCount} Satış</span>
+          </div>
+        </div>
+
+        {/* Term Risk Warning (If Applicable) */}
+        {consolidatedPlan.termRiskWarning && (
+          <div className="bg-amber-950/60 border border-amber-800/80 p-4 rounded-xl text-xs text-amber-200 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5 animate-bounce" />
+            <div className="space-y-1">
+              <span className="font-bold text-white block text-sm">VADE RİSKİ BİLGİLENDİRMESİ</span>
+              <p className="leading-relaxed">{consolidatedPlan.termRiskWarning}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Consolidated Unified Installment Table */}
+        <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950">
+          {consolidatedPlan.installments.length === 0 ? (
+            <div className="p-8 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-1">
+              <CheckCircle2 className="w-6 h-6 text-emerald-400 mb-1" />
+              <span className="font-bold text-emerald-300">Müşterinin ödenmemiş cari borcu bulunmamaktadır.</span>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-900 text-slate-400 font-semibold border-b border-slate-800 uppercase tracking-wider">
+                  <tr>
+                    <th className="p-3">Hafta #</th>
+                    <th className="p-3">Tahmini Ödeme Tarihi</th>
+                    <th className="p-3 text-right">Taksit Tutarı</th>
+                    <th className="p-3 text-right">Taksit Sonrası Kalan Borç</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                  {consolidatedPlan.installments.map((inst) => (
+                    <tr key={inst.weekIndex} className="hover:bg-slate-900/60">
+                      <td className="p-3 font-bold text-slate-300">
+                        {inst.weekIndex}. Hafta
+                      </td>
+                      <td className="p-3 font-mono text-slate-400">
+                        {formatDate(inst.dueDate)}
+                      </td>
+                      <td className="p-3 text-right font-extrabold text-amber-400">
+                        {formatCurrency(inst.amount)}
+                      </td>
+                      <td className="p-3 text-right font-bold text-slate-300">
+                        {formatCurrency(inst.remainingBalance)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 
