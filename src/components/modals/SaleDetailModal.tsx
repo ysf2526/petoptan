@@ -304,7 +304,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                                 ? 'bg-blue-950 text-blue-300'
                                 : s.status === 'overdue'
                                 ? 'bg-rose-950 text-rose-300'
-                                : s.status === 'cancelled'
+                                : (s.status as string) === 'cancelled'
                                 ? 'bg-slate-800 text-slate-400'
                                 : 'bg-amber-950 text-amber-300'
                             }`}
@@ -315,7 +315,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                               ? 'Kısmi Ödendi'
                               : s.status === 'overdue'
                               ? 'Gecikti'
-                              : s.status === 'cancelled'
+                              : (s.status as string) === 'cancelled'
                               ? 'İptal'
                               : 'Bekliyor'}
                           </span>

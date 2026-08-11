@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { Customer, PaymentSchedule, Sale, Profile } from '@/types/database.types';
+import { buildConsolidatedPaymentPlan, ConsolidatedInstallment } from '@/services/consolidatedPaymentPlanService';
 import {
   normalizeTurkishPhone,
   buildCustomerStatementMessage,
@@ -346,7 +347,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-800">
-                          {plan.installments.map((inst) => (
+                          {plan.installments.map((inst: ConsolidatedInstallment) => (
                             <tr key={inst.weekIndex}>
                               <td className="py-2 px-3 font-bold text-slate-900">{inst.weekIndex}. HAFTA</td>
                               <td className="py-2 px-3 font-mono font-medium text-slate-700">{formatDate(inst.dueDate)}</td>

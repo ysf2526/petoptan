@@ -490,13 +490,13 @@ export async function calculateBusinessAssistantInsights(): Promise<BusinessAssi
 
       insights.push({
         id: 'warning-below-cost-sales',
-        category: 'FINANCIAL_HEALTH',
+        category: 'PROFIT',
         priority: 'WARNING',
         title: `Zararına Yapılan Satış İkazı (${totalLossQty} Adet Ürün)`,
         description: `Sistemde toplam ${totalLossQty} adet ürün alış maliyetinin altında satıldı. Zarara en çok neden olan ürün: "${worstProduct ? worstProduct[0] : ''}".`,
         whyExplanation: `Toplam Zarar: -${formatCurrency(totalLossAmount)}. Zarar veren ürün dökümü: ${worstProduct ? worstProduct[0] + ' (' + worstProduct[1].qty + ' adet, -' + formatCurrency(worstProduct[1].loss) + ' zarar)' : ''}.`,
         metricPrimary: `-${formatCurrency(totalLossAmount)} Zarar`,
-        actionType: 'VIEW_SALES',
+        actionType: 'PROFIT_TARGETS',
         timeframe: 'MONTH',
       });
     }
@@ -513,7 +513,7 @@ export async function calculateBusinessAssistantInsights(): Promise<BusinessAssi
         description: `Son 30 gün içinde standart liste fiyatı üzerinden toplam ${formatCurrency(totalDiscountAmount)} müşteri indirimi yapıldı. Tüm indirimli satışlar maliyetin üzerinde kârlı olarak tamamlandı. En çok indirim yapılan ürün: "${topDiscountedProd ? topDiscountedProd[0] : ''}".`,
         whyExplanation: `Toplam Yapılan İndirim: ${formatCurrency(totalDiscountAmount)}. En çok indirim sağlanan ürün: ${topDiscountedProd ? topDiscountedProd[0] + ' (' + topDiscountedProd[1].qty + ' adet, ' + formatCurrency(topDiscountedProd[1].discount) + ' indirim)' : ''}.`,
         metricPrimary: `${formatCurrency(totalDiscountAmount)} İndirim Yapıldı`,
-        actionType: 'VIEW_SALES',
+        actionType: 'PROFIT_TARGETS',
         timeframe: 'MONTH',
       });
     }
