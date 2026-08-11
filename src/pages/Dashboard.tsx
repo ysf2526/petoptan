@@ -23,7 +23,7 @@ import {
   RefreshCw,
   Truck,
 } from 'lucide-react';
-import { SmartSupplierPaymentPlan } from '@/components/dashboard/SmartSupplierPaymentPlan';
+import { BusinessAssistantWidget } from '@/components/dashboard/BusinessAssistantWidget';
 import {
   BarChart,
   Bar,
@@ -394,6 +394,9 @@ export const Dashboard: React.FC = () => {
         </Link>
       </div>
 
+      {/* 🤖 İŞLETME ASİSTANI WIDGET */}
+      <BusinessAssistantWidget onRefreshParent={fetchDashboardData} />
+
       {/* TODAY'S SNAPSHOT STRIP */}
       <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
         <div className="flex items-center gap-2 mb-3">
@@ -433,9 +436,6 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* AKILLI TEDARİKÇİ ÖDEME PLANI VE NAKİT AKIŞI MOTORU */}
-      <SmartSupplierPaymentPlan onRefreshParent={fetchDashboardData} />
 
       {/* MONTHLY MAIN METRICS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

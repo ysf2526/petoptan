@@ -6,6 +6,7 @@ import { formatCurrency, formatDateTime } from '@/utils/formatters';
 import { Supplier, SupplierLedger } from '@/types/database.types';
 import { SupplierModal } from '@/components/modals/SupplierModal';
 import { SupplierPaymentModal } from '@/components/modals/SupplierPaymentModal';
+import { SmartSupplierPaymentPlan } from '@/components/dashboard/SmartSupplierPaymentPlan';
 import {
   Truck,
   Search,
@@ -315,6 +316,9 @@ export const Suppliers: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* AKILLI TEDARİKÇİ ÖDEME PLANI VE NAKİT AKIŞI MOTORU */}
+      <SmartSupplierPaymentPlan onRefreshParent={fetchSuppliers} />
 
       {/* Search Bar */}
       <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">

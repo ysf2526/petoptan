@@ -16,6 +16,7 @@ import {
   LogOut,
   PlusCircle,
   ShieldCheck,
+  Bot,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -27,6 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenNewSaleModal }) => {
 
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/assistant', label: '🤖 İşletme Asistanı', icon: Bot },
     { to: '/sales', label: 'Satışlar', icon: ShoppingCart },
     { to: '/products', label: 'Ürünler', icon: Package },
     { to: '/stock', label: 'Stok', icon: Boxes },

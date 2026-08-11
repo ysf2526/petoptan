@@ -20,6 +20,7 @@ import { ProfitTargets } from '@/pages/ProfitTargets';
 import { Reports } from '@/pages/Reports';
 import { AuditLogs } from '@/pages/AuditLogs';
 import { Settings } from '@/pages/Settings';
+import { Assistant } from '@/pages/Assistant';
 
 export const App: React.FC = () => {
   return (
@@ -33,6 +34,7 @@ export const App: React.FC = () => {
             <Route element={<ProtectedRoute />}>
               <Route element={<Layout />}>
                 <Route path="/" element={<Dashboard />} />
+                <Route path="/assistant" element={<Assistant />} />
                 <Route path="/sales" element={<Sales />} />
                 <Route path="/products" element={<Products />} />
                 <Route path="/stock" element={<StockMovements />} />

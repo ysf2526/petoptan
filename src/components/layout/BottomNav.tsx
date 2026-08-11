@@ -17,6 +17,7 @@ import {
   Settings,
   LogOut,
   X,
+  Bot,
 } from 'lucide-react';
 
 export const BottomNav: React.FC = () => {
@@ -31,6 +32,7 @@ export const BottomNav: React.FC = () => {
   ];
 
   const moreNav = [
+    { to: '/assistant', label: '🤖 İşletme Asistanı', icon: Bot },
     { to: '/products', label: 'Ürünler & Stok Kartları', icon: Package },
     { to: '/stock', label: 'Stok & Depo Girişi', icon: Boxes },
     { to: '/collections', label: 'Tahsilatlar & Vadeler', icon: Receipt },

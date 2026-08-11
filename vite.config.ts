@@ -10,6 +10,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  optimizeDeps: {
+    include: ['@react-pdf/renderer'],
+  },
   server: {
     port: 3000,
     host: true,
