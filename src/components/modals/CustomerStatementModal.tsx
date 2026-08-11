@@ -74,9 +74,6 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
             .order('created_at', { ascending: false })
             .limit(1);
 
-          const bal = lData?.[0]?.balance ? Number(lData[0].balance) : 0;
-          setCurrentDebt(bal);
-
           // 4. Payment Schedules
           const { data: schData } = await supabase
             .from('payment_schedules')
@@ -120,8 +117,8 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           setLastSale(salesArr[0] ? salesArr[0] : null);
 
           // Fail-safe Current Debt Calculation
-          const bal = lData?.[0]?.balance !== undefined && lData?.[0]?.balance !== null ? Number(lData[0].balance) : 0;
-          setCurrentDebt(Math.max(bal, activeSalesDebt));
+          const ledgerBal = lData?.[0]?.balance !== undefined && lData?.[0]?.balance !== null ? Number(lData[0].balance) : 0;
+          setCurrentDebt(Math.max(ledgerBal, activeSalesDebt));
         } catch (err: any) {
           console.error(err);
           showError(err.message || 'Müşteri bilgileri yüklenemedi.');

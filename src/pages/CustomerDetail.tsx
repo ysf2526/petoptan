@@ -96,11 +96,6 @@ export const CustomerDetail: React.FC = () => {
       setTotalPurchases(totPurchases);
       setTotalPayments(totPay);
 
-      // Current Debt is net remaining debt (totPurchases - totPay) or latest running balance
-      const latestBal = Number(lData?.[0]?.balance || 0);
-      const calculatedDebt = Math.max(0, totPurchases - totPay);
-      setCurrentDebt(latestBal > 0 ? latestBal : calculatedDebt);
-
       // 3. Payment Schedules
       const { data: sData } = await supabase
         .from('payment_schedules')
