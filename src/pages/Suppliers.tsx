@@ -49,8 +49,8 @@ export const Suppliers: React.FC = () => {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentTargetSupplierId, setPaymentTargetSupplierId] = useState<string | null>(null);
 
-  // Selected supplier for Ledger Timeline Drawer
-  const [selectedLedgerSupplier, setSelectedLedgerSupplier] = useState<SupplierWithBalance | null>(null);
+  // Selected supplier ID for Ledger Timeline Drawer (primitive ID string to prevent infinite re-render loops)
+  const [selectedLedgerSupplierId, setSelectedLedgerSupplierId] = useState<string | null>(null);
   const [ledgerLogs, setLedgerLogs] = useState<SupplierLedger[]>([]);
   const [fetchingLedger, setFetchingLedger] = useState(false);
   const [ledgerFilter, setLedgerFilter] = useState<'ALL' | 'PAYMENT' | 'OFFSET' | 'PURCHASE'>('ALL');
@@ -69,21 +69,23 @@ export const Suppliers: React.FC = () => {
       if (supData && supData.length > 0) {
         const enriched = await Promise.all(
           supData.map(async (sup) => {
+            // 1. Fetch supplier ledger entries ordered latest first to get exact current balance
             const { data: lData } = await supabase
               .from('supplier_ledger')
               .select('*')
               .eq('supplier_id', sup.id)
               .is('deleted_at', null)
-              .order('created_at', { ascending: true });
+              .order('created_at', { ascending: false });
 
-            let bal = 0;
+            // Latest balance is the balance field of the first row (ordered DESC)
+            const latestBalance = lData?.[0]?.balance ? Number(lData[0].balance) : 0;
+
             let credPurch = 0;
             let totPay = 0;
             let totOff = 0;
 
             lData?.forEach((row) => {
-              bal = Number(row.balance || 0);
-              if (row.movement_type === 'PURCHASE') {
+              if (row.movement_type === 'PURCHASE' || row.movement_type === 'ADJUSTMENT') {
                 credPurch += Number(row.credit || 0);
               } else if (row.movement_type === 'OFFSET') {
                 totOff += Number(row.debit || 0);
@@ -92,32 +94,26 @@ export const Suppliers: React.FC = () => {
               }
             });
 
+            // 2. Fetch stock movements linked directly to this supplier
             const { data: smData } = await supabase
               .from('stock_movements')
-              .select('quantity, unit_cost, product_id')
+              .select('quantity, unit_cost')
+              .eq('supplier_id', sup.id)
               .eq('movement_type', 'PURCHASE')
               .is('deleted_at', null);
 
-            const { data: pData } = await supabase
-              .from('products')
-              .select('id')
-              .eq('supplier_id', sup.id);
-
-            const prodIds = new Set(pData?.map((p) => p.id) || []);
             let allPurchTotal = 0;
-
             smData?.forEach((sm) => {
-              if (prodIds.has(sm.product_id)) {
-                allPurchTotal += Number(sm.quantity || 0) * Number(sm.unit_cost || 0);
-              }
+              allPurchTotal += Number(sm.quantity || 0) * Number(sm.unit_cost || 0);
             });
 
-            const cashPurch = Math.max(0, allPurchTotal - credPurch);
-            const totPurch = credPurch + cashPurch;
+            // Total purchases is max of stock movements total or credit purchases
+            const totPurch = Math.max(allPurchTotal, credPurch);
+            const cashPurch = Math.max(0, totPurch - credPurch);
 
             return {
               ...sup,
-              balance: bal,
+              balance: latestBalance,
               totalPurchases: totPurch,
               creditPurchases: credPurch,
               cashPurchases: cashPurch,
@@ -128,12 +124,6 @@ export const Suppliers: React.FC = () => {
         );
 
         setSuppliers(enriched);
-
-        // Update active drawer supplier if open
-        if (selectedLedgerSupplier) {
-          const updated = enriched.find((s) => s.id === selectedLedgerSupplier.id);
-          if (updated) setSelectedLedgerSupplier(updated);
-        }
       } else {
         setSuppliers([]);
       }
@@ -142,7 +132,7 @@ export const Suppliers: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [showError, selectedLedgerSupplier]);
+  }, [showError]);
 
   useEffect(() => {
     fetchSuppliers();
@@ -151,15 +141,18 @@ export const Suppliers: React.FC = () => {
     return () => window.removeEventListener('refresh-data', handleRefresh);
   }, [fetchSuppliers]);
 
-  // Fetch supplier ledger timeline
+  // Derive active drawer supplier from suppliers array by ID
+  const activeLedgerSupplier = suppliers.find((s) => s.id === selectedLedgerSupplierId) || null;
+
+  // Fetch supplier ledger timeline when selectedLedgerSupplierId changes
   const loadLedger = useCallback(async () => {
-    if (!selectedLedgerSupplier) return;
+    if (!selectedLedgerSupplierId) return;
     setFetchingLedger(true);
     try {
       const { data } = await supabase
         .from('supplier_ledger')
         .select('*')
-        .eq('supplier_id', selectedLedgerSupplier.id)
+        .eq('supplier_id', selectedLedgerSupplierId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
@@ -169,13 +162,13 @@ export const Suppliers: React.FC = () => {
     } finally {
       setFetchingLedger(false);
     }
-  }, [selectedLedgerSupplier]);
+  }, [selectedLedgerSupplierId]);
 
   useEffect(() => {
-    if (selectedLedgerSupplier) {
+    if (selectedLedgerSupplierId) {
       loadLedger();
     }
-  }, [selectedLedgerSupplier, loadLedger]);
+  }, [selectedLedgerSupplierId, loadLedger]);
 
   const handleDeleteSupplier = async (sup: Supplier) => {
     if (!window.confirm(`"${sup.company_name}" firmasını silmek istediğinize emin misiniz?`)) return;
@@ -413,7 +406,7 @@ export const Suppliers: React.FC = () => {
                         </button>
 
                         <button
-                          onClick={() => setSelectedLedgerSupplier(s)}
+                          onClick={() => setSelectedLedgerSupplierId(s.id)}
                           className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-purple-600/20 hover:text-purple-300 border border-slate-700 text-slate-300 font-semibold text-xs transition-all flex items-center gap-1"
                         >
                           <History className="w-3.5 h-3.5" />
@@ -430,6 +423,14 @@ export const Suppliers: React.FC = () => {
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
+
+                        <button
+                          onClick={() => handleDeleteSupplier(s)}
+                          className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-lg"
+                          title="Sil"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -441,9 +442,9 @@ export const Suppliers: React.FC = () => {
       </div>
 
       {/* Supplier Ledger Timeline Drawer Modal */}
-      {selectedLedgerSupplier && (
+      {activeLedgerSupplier && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md" onClick={() => setSelectedLedgerSupplier(null)} />
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md" onClick={() => setSelectedLedgerSupplierId(null)} />
           <div className="relative bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl z-10 overflow-hidden">
             {/* Header */}
             <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900">
@@ -452,7 +453,7 @@ export const Suppliers: React.FC = () => {
                   <Truck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base sm:text-lg font-bold text-white">{selectedLedgerSupplier.company_name}</h2>
+                  <h2 className="text-base sm:text-lg font-bold text-white">{activeLedgerSupplier.company_name}</h2>
                   <p className="text-xs text-slate-400">Tedarikçi Cari Hesabı & Detaylı Finansal Döküm</p>
                 </div>
               </div>
@@ -460,10 +461,10 @@ export const Suppliers: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
-                    setPaymentTargetSupplierId(selectedLedgerSupplier.id);
+                    setPaymentTargetSupplierId(activeLedgerSupplier.id);
                     setPaymentModalOpen(true);
                   }}
-                  disabled={selectedLedgerSupplier.balance <= 0}
+                  disabled={activeLedgerSupplier.balance <= 0}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all disabled:opacity-40"
                 >
                   <DollarSign className="w-4 h-4" />
@@ -471,7 +472,7 @@ export const Suppliers: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => setSelectedLedgerSupplier(null)}
+                  onClick={() => setSelectedLedgerSupplierId(null)}
                   className="p-2 text-slate-400 hover:text-white rounded-lg bg-slate-800"
                 >
                   <X className="w-5 h-5" />
@@ -485,23 +486,23 @@ export const Suppliers: React.FC = () => {
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-center">
                 <div>
                   <span className="text-slate-400 block font-medium">Toplam Alım</span>
-                  <span className="font-bold text-white text-sm mt-0.5 block">{formatCurrency(selectedLedgerSupplier.totalPurchases)}</span>
+                  <span className="font-bold text-white text-sm mt-0.5 block">{formatCurrency(activeLedgerSupplier.totalPurchases)}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">Vadeli Alımlar</span>
-                  <span className="font-bold text-amber-300 text-sm mt-0.5 block">{formatCurrency(selectedLedgerSupplier.creditPurchases)}</span>
+                  <span className="font-bold text-amber-300 text-sm mt-0.5 block">{formatCurrency(activeLedgerSupplier.creditPurchases)}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">Doğrudan Ödemeler</span>
-                  <span className="font-bold text-emerald-400 text-sm mt-0.5 block">{formatCurrency(selectedLedgerSupplier.totalPayments)}</span>
+                  <span className="font-bold text-emerald-400 text-sm mt-0.5 block">{formatCurrency(activeLedgerSupplier.totalPayments)}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">POS Mahsupları</span>
-                  <span className="font-bold text-purple-400 text-sm mt-0.5 block">{formatCurrency(selectedLedgerSupplier.totalOffsets)}</span>
+                  <span className="font-bold text-purple-400 text-sm mt-0.5 block">{formatCurrency(activeLedgerSupplier.totalOffsets)}</span>
                 </div>
                 <div className="col-span-2 sm:col-span-1">
                   <span className="text-slate-400 block font-medium">Güncel Kalan Borç</span>
-                  <span className="font-extrabold text-amber-400 text-sm mt-0.5 block">{formatCurrency(selectedLedgerSupplier.balance)}</span>
+                  <span className="font-extrabold text-amber-400 text-sm mt-0.5 block">{formatCurrency(activeLedgerSupplier.balance)}</span>
                 </div>
               </div>
 
