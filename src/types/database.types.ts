@@ -312,6 +312,7 @@ export interface DashboardStats {
   warehouseTotalProducts: number;
   warehouseStockCost: number;
   criticalStockCount: number;
+  outOfStockCount: number;
   
   // Today's metrics
   todaySales: number;

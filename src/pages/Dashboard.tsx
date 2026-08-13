@@ -63,6 +63,7 @@ export const Dashboard: React.FC = () => {
     warehouseTotalProducts: 0,
     warehouseStockCost: 0,
     criticalStockCount: 0,
+    outOfStockCount: 0,
     todaySales: 0,
     todayCollections: 0,
     todayProfit: 0,
@@ -243,8 +244,11 @@ export const Dashboard: React.FC = () => {
         .eq('active', true)
         .is('deleted_at', null);
 
-      let totalProds = 0;
+      let totalProductsCount = productsData?.length || 0;
+      let totalStockQtySum = 0;
       let totalStockCost = 0;
+      let outOfStockCnt = 0;
+      let criticalCnt = 0;
       const criticalProds: Product[] = [];
 
       productsData?.forEach((p) => {
@@ -252,10 +256,15 @@ export const Dashboard: React.FC = () => {
         const minStock = Number(p.minimum_stock || 0);
         const price = Number(p.purchase_price || 0);
 
-        totalProds += stock;
-        totalStockCost += stock * price;
+        totalStockQtySum += stock;
+        if (stock > 0) {
+          totalStockCost += stock * price;
+        }
 
-        if (stock <= minStock) {
+        if (stock <= 0) {
+          outOfStockCnt++;
+        } else if (stock <= minStock) {
+          criticalCnt++;
           criticalProds.push(p as Product);
         }
       });
@@ -285,9 +294,10 @@ export const Dashboard: React.FC = () => {
         totalCustomerDebt: totalCustDebt,
         dueThisWeek: dueWeek,
         overduePayments: overdue,
-        warehouseTotalProducts: totalProds,
+        warehouseTotalProducts: totalProductsCount,
         warehouseStockCost: totalStockCost,
-        criticalStockCount: criticalProds.length,
+        criticalStockCount: criticalCnt,
+        outOfStockCount: outOfStockCnt,
         todaySales: tSales,
         todayCollections: tCollections,
         todayProfit: tProfit,
@@ -577,16 +587,23 @@ export const Dashboard: React.FC = () => {
             <span className="text-[11px] text-slate-500 block mt-0.5">Toptancı Firmalara</span>
           </div>
 
-          <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800/60">
-            <span className="text-xs text-slate-400 font-medium block">Kritik Stok Uyarısı</span>
-            <div className="flex items-center gap-2">
-              <span className={`text-lg font-extrabold ${stats.criticalStockCount > 0 ? 'text-amber-400' : 'text-slate-300'}`}>
-                {stats.criticalStockCount} Ürün
-              </span>
-              {stats.criticalStockCount > 0 && <AlertTriangle className="w-4 h-4 text-amber-400 animate-pulse" />}
+          <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800/60 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400 font-medium block">STOK DURUMU</span>
+                {stats.criticalStockCount > 0 && <AlertTriangle className="w-4 h-4 text-amber-400 animate-pulse" />}
+              </div>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-sm font-extrabold text-white">Toplam: {stats.warehouseTotalProducts}</span>
+                <span className="text-xs font-bold text-amber-300">Kritik: {stats.criticalStockCount}</span>
+                <span className="text-xs font-bold text-rose-400">Stoksuz: {stats.outOfStockCount}</span>
+              </div>
             </div>
-            <Link to="/products" className="text-[11px] text-brand-400 hover:underline block mt-0.5">
-              İncele ve Sipariş Geç
+            <Link
+              to="/stock?tab=inventory&filter=CRITICAL"
+              className="text-[11px] font-bold text-amber-400 hover:text-amber-300 hover:underline block mt-1 flex items-center gap-1"
+            >
+              <span>⚠️ Kritik stokta olan ürünleri görüntüle →</span>
             </Link>
           </div>
         </div>
