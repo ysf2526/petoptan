@@ -4,6 +4,7 @@ import { useToast } from '@/context/ToastContext';
 import { parseErrorMessage } from '@/utils/errors';
 import { formatCurrency } from '@/utils/formatters';
 import { Supplier } from '@/types/database.types';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import {
   X,
   DollarSign,
@@ -294,19 +295,19 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                 <Building2 className="w-4 h-4 text-emerald-400" />
                 <span>Ödeme Yapılacak Tedarikçi Firma *</span>
               </label>
-              <select
-                required
+              <SearchableSelect
+                options={suppliers.map((s) => ({
+                  id: s.id,
+                  label: s.company_name,
+                  sublabel: `Borç: ${formatCurrency(s.balance)}`,
+                  searchText: `${s.contact_person || ''} ${s.phone || ''}`,
+                }))}
                 value={selectedSupplierId}
-                onChange={(e) => setSelectedSupplierId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl p-3 text-slate-100 text-sm font-bold outline-none"
-              >
-                <option value="">-- Tedarikçi Seçin --</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.company_name} (Borç: {formatCurrency(s.balance)})
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setSelectedSupplierId(val)}
+                placeholder="Tedarikçi adı veya tel no yazarak arayın..."
+                searchPlaceholder="Tedarikçi ara..."
+                emptyMessage="Eşleşen tedarikçi bulunamadı."
+              />
             </div>
 
             {/* Current Debt Banner */}

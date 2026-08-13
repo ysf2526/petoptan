@@ -4,6 +4,7 @@ import { useToast } from '@/context/ToastContext';
 import { parseErrorMessage } from '@/utils/errors';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { Customer, Supplier, PaymentMethod } from '@/types/database.types';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { X, Receipt, Loader2, CheckCircle2, ArrowRightLeft, ShieldAlert } from 'lucide-react';
 
 interface PaymentModalProps {
@@ -317,19 +318,19 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
                 Müşteri Seçin *
               </label>
-              <select
-                required
+              <SearchableSelect
+                options={customers.map((c) => ({
+                  id: c.id,
+                  label: c.business_name,
+                  sublabel: c.contact_name || undefined,
+                  searchText: `${c.phone || ''} ${c.tax_number || ''}`,
+                }))}
                 value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-slate-100 text-sm focus:border-emerald-500 outline-none"
-              >
-                <option value="">-- Müşteri Seçin --</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.business_name} ({c.contact_name || 'Yetkili Yok'})
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setSelectedCustomerId(val)}
+                placeholder="Müşteri adı veya tel no yazın..."
+                searchPlaceholder="Müşteri ara..."
+                emptyMessage="Eşleşen müşteri bulunamadı."
+              />
             </div>
 
             {/* Selected Customer Financial Snapshot Strip */}
@@ -399,19 +400,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     Tedarikçi Seçin *
                   </label>
-                  <select
-                    required
+                  <SearchableSelect
+                    options={suppliers.map((s) => ({
+                      id: s.id,
+                      label: s.company_name,
+                      sublabel: `Borç: ${formatCurrency(s.debt)}`,
+                    }))}
                     value={selectedSupplierId}
-                    onChange={(e) => setSelectedSupplierId(e.target.value)}
-                    className="w-full bg-slate-900 border border-purple-700/80 rounded-xl p-2.5 text-slate-100 text-sm focus:border-purple-500 outline-none"
-                  >
-                    <option value="">-- Tedarikçi Seçin --</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.company_name} (Borcunuz: {formatCurrency(s.debt)})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setSelectedSupplierId(val)}
+                    placeholder="Tedarikçi adı yazarak arayın..."
+                    searchPlaceholder="Tedarikçi ara..."
+                    emptyMessage="Eşleşen tedarikçi bulunamadı."
+                  />
                 </div>
 
                 {selectedSupplierId && (

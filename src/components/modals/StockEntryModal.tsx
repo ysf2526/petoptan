@@ -4,6 +4,7 @@ import { useToast } from '@/context/ToastContext';
 import { parseErrorMessage } from '@/utils/errors';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
 import { Product, Supplier } from '@/types/database.types';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { CreateProductInlineModal } from '@/components/modals/CreateProductInlineModal';
 import {
   X,
@@ -437,18 +438,19 @@ export const StockEntryModal: React.FC<StockEntryModalProps> = ({
                     <Building2 className="w-4 h-4 text-indigo-400" />
                     <span>1. Tedarikçi Firma Seçin *</span>
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={suppliers.map((s) => ({
+                      id: s.id,
+                      label: s.company_name,
+                      sublabel: s.contact_person || undefined,
+                      searchText: `${s.phone || ''} ${s.email || ''}`,
+                    }))}
                     value={selectedSupplierId}
-                    onChange={(e) => setSelectedSupplierId(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 rounded-xl p-3 text-slate-100 text-xs font-bold outline-none"
-                  >
-                    <option value="">-- Tedarikçi Seçin --</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.company_name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setSelectedSupplierId(val)}
+                    placeholder="Tedarikçi adı veya tel no yazarak arayın..."
+                    searchPlaceholder="Tedarikçi ara..."
+                    emptyMessage="Eşleşen tedarikçi bulunamadı."
+                  />
                 </div>
 
                 {/* Ödeme Durumu Selection Cards */}

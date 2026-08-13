@@ -5,6 +5,7 @@ import { useToast } from '@/context/ToastContext';
 import { parseErrorMessage } from '@/utils/errors';
 import { calculateUnitProfit, calculateProfitMargin, formatCurrency } from '@/utils/formatters';
 import { Product, ProductUnit, Supplier } from '@/types/database.types';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { X, Package, Loader2, CheckCircle2 } from 'lucide-react';
 
 interface ProductModalProps {
@@ -325,16 +326,19 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                 Tedarikçi Firma
               </label>
-              <select
+              <SearchableSelect
+                options={suppliers.map((s) => ({
+                  id: s.id,
+                  label: s.company_name,
+                  sublabel: s.contact_person || undefined,
+                  searchText: `${s.phone || ''} ${s.email || ''}`,
+                }))}
                 value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl p-2.5 text-slate-100 text-xs outline-none"
-              >
-                <option value="">-- Tedarikçi Yok --</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>{s.company_name}</option>
-                ))}
-              </select>
+                onChange={(val) => setSupplierId(val)}
+                placeholder="Tedarikçi adı yazarak arayın..."
+                searchPlaceholder="Tedarikçi ara..."
+                emptyMessage="Eşleşen tedarikçi bulunamadı."
+              />
             </div>
           </div>
 

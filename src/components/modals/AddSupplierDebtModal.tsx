@@ -4,6 +4,7 @@ import { useToast } from '@/context/ToastContext';
 import { parseErrorMessage } from '@/utils/errors';
 import { formatCurrency } from '@/utils/formatters';
 import { Supplier } from '@/types/database.types';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { X, Plus, Loader2, CheckCircle2, Truck, AlertCircle } from 'lucide-react';
 
 interface AddSupplierDebtModalProps {
@@ -160,17 +161,19 @@ export const AddSupplierDebtModal: React.FC<AddSupplierDebtModalProps> = ({
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
                   Tedarikçi Firma *
                 </label>
-                <select
+                <SearchableSelect
+                  options={suppliers.map((s) => ({
+                    id: s.id,
+                    label: s.company_name,
+                    sublabel: `Borç: ${formatCurrency(s.balance)}`,
+                    searchText: `${s.contact_person || ''} ${s.phone || ''}`,
+                  }))}
                   value={selectedSupplierId}
-                  onChange={(e) => setSelectedSupplierId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl p-3 text-white font-bold text-sm outline-none"
-                >
-                  {suppliers.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.company_name} (Mevcut Borç: {formatCurrency(s.balance)})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedSupplierId(val)}
+                  placeholder="Tedarikçi adı yazarak arayın..."
+                  searchPlaceholder="Tedarikçi ara..."
+                  emptyMessage="Eşleşen tedarikçi bulunamadı."
+                />
               </div>
 
               {/* Debt Summary Strip */}

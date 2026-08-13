@@ -5,6 +5,7 @@ import { useToast } from '@/context/ToastContext';
 import { parseErrorMessage } from '@/utils/errors';
 import { formatCurrency, formatNumber, formatDate } from '@/utils/formatters';
 import { Customer, Product } from '@/types/database.types';
+import { SearchableSelect, SearchableOption } from '@/components/common/SearchableSelect';
 import {
   X,
   Plus,
@@ -460,19 +461,19 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                   <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
                     Müşteri Seçin *
                   </label>
-                  <select
-                    required
+                  <SearchableSelect
+                    options={customers.map((c) => ({
+                      id: c.id,
+                      label: c.business_name,
+                      sublabel: c.contact_name || undefined,
+                      searchText: `${c.phone || ''} ${c.tax_number || ''}`,
+                    }))}
                     value={selectedCustomerId}
-                    onChange={(e) => setSelectedCustomerId(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-100 text-sm focus:border-brand-500 outline-none font-semibold"
-                  >
-                    <option value="">-- Müşteri Seçin --</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.business_name} ({c.contact_name || 'Yetkili Yok'})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setSelectedCustomerId(val)}
+                    placeholder="Müşteri adı veya tel no yazın..."
+                    searchPlaceholder="Müşteri ara..."
+                    emptyMessage="Eşleşen müşteri bulunamadı."
+                  />
                 </div>
 
                 <div>
@@ -525,21 +526,24 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Satış Kalemleri</h3>
-                  <div className="w-72">
-                    <select
-                      onChange={(e) => {
-                        handleAddItem(e.target.value);
-                        e.target.value = '';
+                  <div className="w-full sm:w-80">
+                    <SearchableSelect
+                      options={products.map((p) => ({
+                        id: p.id,
+                        label: p.product_name,
+                        sublabel: formatCurrency(p.sale_price),
+                        badge: p.current_stock > 0 ? `Stok: ${p.current_stock} ${p.unit}` : 'STOK YOK',
+                        badgeColor: p.current_stock > 0 ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-rose-950 text-rose-300 border border-rose-800',
+                        searchText: `${p.brand || ''} ${p.category || ''} ${p.barcode || ''}`,
+                      }))}
+                      value=""
+                      onChange={(val) => {
+                        if (val) handleAddItem(val);
                       }}
-                      className="w-full bg-slate-950 border border-brand-500/70 rounded-xl p-2.5 text-slate-100 text-xs font-semibold focus:ring-2 focus:ring-brand-500 outline-none"
-                    >
-                      <option value="">+ Ürün Ekle...</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.product_name} {p.current_stock > 0 ? `(Stok: ${p.current_stock} ${p.unit})` : '(STOK YOK!)'} - {formatCurrency(p.sale_price)}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="+ Ürün arayın ve ekleyin..."
+                      searchPlaceholder="Ürün adı, barkod, marka ara..."
+                      emptyMessage="Eşleşen ürün bulunamadı."
+                    />
                   </div>
                 </div>
 
