@@ -127,7 +127,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
       }
     } catch (e) {
       console.error(e);
-    } font-sans finally {
+    } finally {
       setFetchingSuppliers(false);
     }
   };
