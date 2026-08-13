@@ -9,11 +9,7 @@ export interface PhoneNormalizationResult {
 }
 
 /**
- * Normalizes Turkish mobile phone numbers into international 905XXXXXXXXX format.
- * Examples:
- * "0532 123 45 67" -> "905321234567"
- * "5321234567"     -> "905321234567"
- * "+90 532 123 4567" -> "905321234567"
+  Normalizes Turkish mobile phone numbers into international 905XXXXXXXXX format.
  */
 export function normalizeTurkishPhone(phone?: string | null): PhoneNormalizationResult {
   if (!phone) {
@@ -35,6 +31,97 @@ export function normalizeTurkishPhone(phone?: string | null): PhoneNormalization
   }
 
   return { raw: phone, normalized: digits, isValid: false };
+}
+
+/**
+ * Fetches the current logged in user's business name from profiles table.
+ */
+export async function getBusinessName(): Promise<string> {
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user?.id) return 'Petshop Toptan Satış';
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('business_name')
+      .eq('id', userData.user.id)
+      .maybeSingle();
+
+    return profile?.business_name || 'Petshop Toptan Satış';
+  } catch (err) {
+    return 'Petshop Toptan Satış';
+  }
+}
+
+/**
+ * Builds Turkish WhatsApp text message for Customer Collection (Müşteri Tahsilatı).
+ */
+export function buildCustomerCollectionWhatsAppMessage(
+  customerName: string,
+  businessName: string,
+  amount: number,
+  newBalance: number
+): string {
+  return `Merhaba ${customerName},
+
+${businessName || 'Petshop Toptan Satış'} hesabınıza ${formatCurrency(amount)} ödemeniz işlenmiştir.
+
+Güncel cari borcunuz: ${formatCurrency(newBalance)}
+
+Teşekkür ederiz.`;
+}
+
+/**
+ * Builds Turkish WhatsApp text message for Supplier Payment (Tedarikçiye Ödeme).
+ */
+export function buildSupplierPaymentWhatsAppMessage(
+  supplierName: string,
+  amount: number,
+  newBalance: number
+): string {
+  return `Merhaba ${supplierName},
+
+Bugün hesabınıza ${formatCurrency(amount)} ödeme gerçekleştirilmiştir.
+
+Güncel borcumuz: ${formatCurrency(newBalance)}
+
+Bilginize.`;
+}
+
+/**
+ * Builds Turkish WhatsApp text message for Customer Offset Notification (Mahsup Sonrası Müşteri Mesajı).
+ */
+export function buildCustomerOffsetWhatsAppMessage(
+  customerName: string,
+  businessName: string,
+  amount: number,
+  newBalance: number
+): string {
+  return `Merhaba ${customerName},
+
+${businessName || 'Petshop Toptan Satış'} hesabınıza ${formatCurrency(amount)} ödemeniz işlenmiştir.
+
+Güncel cari borcunuz: ${formatCurrency(newBalance)}
+
+Teşekkür ederiz.`;
+}
+
+/**
+ * Builds Turkish WhatsApp text message for Supplier Offset Notification (Mahsup Sonrası Tedarikçi Mesajı).
+ */
+export function buildSupplierOffsetWhatsAppMessage(
+  supplierName: string,
+  customerName: string,
+  amount: number,
+  newBalance: number
+): string {
+  return `Merhaba ${supplierName},
+
+${customerName} tarafından gerçekleştirilen ${formatCurrency(amount)} tutarındaki tahsilat, ${supplierName} cari hesabımıza mahsup edilmiştir.
+
+Mahsup sonrası güncel borcumuz: ${formatCurrency(newBalance)}
+
+Bilginize.`;
 }
 
 /**
@@ -133,7 +220,7 @@ Teşekkür ederiz.`;
 export function openWhatsAppWeb(phone: string, text: string): void {
   const norm = normalizeTurkishPhone(phone);
   if (!norm.isValid) {
-    throw new Error('Müşterinin geçerli bir telefon numarası bulunmuyor.');
+    throw new Error('Geçerli bir WhatsApp telefon numarası bulunmuyor.');
   }
 
   const encodedText = encodeURIComponent(text);
@@ -145,7 +232,7 @@ export function openWhatsAppWeb(phone: string, text: string): void {
  * Logs a WhatsApp sharing attempt to audit logs in Supabase.
  */
 export async function logWhatsAppShareAttempt(
-  entityType: 'sales' | 'customers',
+  entityType: 'sales' | 'customers' | 'suppliers' | 'payments' | 'offset',
   entityId: string,
   phoneNumber: string,
   details: Record<string, any>
@@ -175,21 +262,13 @@ export async function logWhatsAppShareAttempt(
  * Future WhatsApp Business Cloud API Integration Layer (Abstraction)
  */
 export class WhatsAppService {
-  /**
-   * Future implementation for direct WhatsApp Cloud API message delivery
-   */
   static async sendWhatsAppMessage(toPhone: string, text: string): Promise<{ success: boolean; messageId?: string }> {
     console.log('[WhatsAppService] sendWhatsAppMessage stub called', { toPhone, text });
-    // Future API call via Supabase Edge Functions or backend API endpoint
     return { success: true, messageId: 'stub-msg-id' };
   }
 
-  /**
-   * Future implementation for direct WhatsApp Cloud API PDF document attachment delivery
-   */
   static async sendWhatsAppDocument(toPhone: string, pdfUrl: string, caption: string): Promise<{ success: boolean; messageId?: string }> {
     console.log('[WhatsAppService] sendWhatsAppDocument stub called', { toPhone, pdfUrl, caption });
-    // Future API call via Supabase Edge Functions or backend API endpoint
     return { success: true, messageId: 'stub-doc-id' };
   }
 }

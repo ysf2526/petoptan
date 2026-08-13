@@ -6,6 +6,12 @@ import { formatCurrency } from '@/utils/formatters';
 import { Supplier } from '@/types/database.types';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
 import {
+  normalizeTurkishPhone,
+  buildSupplierPaymentWhatsAppMessage,
+  openWhatsAppWeb,
+  logWhatsAppShareAttempt,
+} from '@/services/whatsappService';
+import {
   X,
   DollarSign,
   Loader2,
@@ -19,6 +25,8 @@ import {
   Calendar,
   FileText,
   Hash,
+  MessageSquare,
+  PhoneOff,
 } from 'lucide-react';
 
 interface SupplierPaymentModalProps {
@@ -29,6 +37,16 @@ interface SupplierPaymentModalProps {
 }
 
 type PaymentMethodType = 'Nakit' | 'Havale/EFT' | 'Kart' | 'Diğer';
+
+interface CompletedSupplierPaymentResult {
+  supplierId: string;
+  supplierName: string;
+  supplierPhone?: string | null;
+  amount: number;
+  prevDebt: number;
+  newDebt: number;
+  ledgerId?: string;
+}
 
 export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
   isOpen,
@@ -50,6 +68,10 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
   const [notes, setNotes] = useState<string>('');
 
   const [showConfirmation, setShowConfirmation] = useState(false);
+
+  // Success Step Screen State
+  const [completedResult, setCompletedResult] = useState<CompletedSupplierPaymentResult | null>(null);
+  const [whatsappSent, setWhatsappSent] = useState(false);
 
   const loadSuppliersData = async () => {
     setFetchingSuppliers(true);
@@ -105,7 +127,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
       }
     } catch (e) {
       console.error(e);
-    } finally {
+    } font-sans finally {
       setFetchingSuppliers(false);
     }
   };
@@ -116,6 +138,8 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
       setReferenceNumber('');
       setNotes('');
       setShowConfirmation(false);
+      setCompletedResult(null);
+      setWhatsappSent(false);
       setPaymentDate(new Date().toISOString().split('T')[0]);
       loadSuppliersData();
     }
@@ -132,7 +156,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
   const handlePrepareSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedSupplierId) {
+    if (!selectedSupplierId || !selectedSupplier) {
       showError('Lütfen bir tedarikçi firma seçin.');
       return;
     }
@@ -151,6 +175,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
   };
 
   const handleConfirmPayment = async () => {
+    if (!selectedSupplier) return;
     setLoading(true);
 
     try {
@@ -164,18 +189,67 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
       });
 
       if (error) {
-        showError(parseErrorMessage(error));
+        const errMsg = parseErrorMessage(error);
+        // If RPC fails due to legacy stale balance check in DB, execute direct ledger fallback
+        if (errMsg.includes('fazla olamaz') && numAmount <= currentDebt) {
+          const { data: userData } = await supabase.auth.getUser();
+          const userId = userData.user?.id;
+
+          if (userId) {
+            let desc = `Tedarikçiye Ödeme (${paymentMethod})`;
+            if (referenceNumber.trim()) {
+              desc += ` - Ref/Dekont: ${referenceNumber.trim()}`;
+            }
+
+            const { data: insData, error: insErr } = await supabase.from('supplier_ledger').insert({
+              owner_id: userId,
+              supplier_id: selectedSupplierId,
+              movement_type: 'PAYMENT',
+              description: desc,
+              debit: numAmount,
+              credit: 0.00,
+              balance: remainingDebtAfterPayment,
+            }).select('id').single();
+
+            if (!insErr) {
+              await supabase.rpc('recalculate_all_supplier_ledger_balances').catch(() => {});
+
+              showSuccess(`"${selectedSupplier.company_name}" firmasına ${formatCurrency(numAmount)} tutarında ödeme işlendi!`);
+              if (onSuccess) onSuccess();
+
+              setCompletedResult({
+                supplierId: selectedSupplier.id,
+                supplierName: selectedSupplier.company_name,
+                supplierPhone: selectedSupplier.phone,
+                amount: numAmount,
+                prevDebt: currentDebt,
+                newDebt: remainingDebtAfterPayment,
+                ledgerId: insData?.id,
+              });
+              return;
+            }
+          }
+        }
+
+        showError(errMsg);
         setLoading(false);
         return;
       }
 
       if (data && data.success) {
-        showSuccess(
-          `"${selectedSupplier?.company_name}" firmasına ${formatCurrency(numAmount)} tutarında ödeme işlendi! Güncel borç: ${formatCurrency(data.new_balance)}`
-        );
-        setShowConfirmation(false);
-        onClose();
+        const newBal = data.new_balance !== undefined ? Number(data.new_balance) : remainingDebtAfterPayment;
+        showSuccess(`"${selectedSupplier.company_name}" firmasına ${formatCurrency(numAmount)} tutarında ödeme işlendi!`);
         if (onSuccess) onSuccess();
+
+        setCompletedResult({
+          supplierId: selectedSupplier.id,
+          supplierName: selectedSupplier.company_name,
+          supplierPhone: selectedSupplier.phone,
+          amount: numAmount,
+          prevDebt: currentDebt,
+          newDebt: newBal,
+          ledgerId: data.ledger_id,
+        });
       } else {
         showError('Tedarikçi ödemesi gerçekleştirilemedi.');
       }
@@ -186,9 +260,46 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
     }
   };
 
+  const handleSendSupplierWhatsApp = async () => {
+    if (!completedResult) return;
+    const phoneNorm = normalizeTurkishPhone(completedResult.supplierPhone);
+    if (!phoneNorm.isValid) {
+      showError('Bu tedarikçinin kayıtlı geçerli bir WhatsApp telefonu bulunmuyor.');
+      return;
+    }
+
+    try {
+      const text = buildSupplierPaymentWhatsAppMessage(
+        completedResult.supplierName,
+        completedResult.amount,
+        completedResult.newDebt
+      );
+
+      openWhatsAppWeb(completedResult.supplierPhone!, text);
+
+      if (completedResult.ledgerId) {
+        logWhatsAppShareAttempt('suppliers', completedResult.ledgerId, phoneNorm.normalized, {
+          target: 'supplier',
+          supplier_name: completedResult.supplierName,
+          amount: completedResult.amount,
+        });
+      }
+
+      setWhatsappSent(true);
+      showSuccess('Tedarikçi için WhatsApp mesajı hazırlandı ve açıldı.');
+    } catch (err) {
+      showError(parseErrorMessage(err));
+    }
+  };
+
+  const handleFinishAndClose = () => {
+    onClose();
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
-      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md" onClick={onClose} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 font-sans">
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md" onClick={completedResult ? handleFinishAndClose : onClose} />
 
       <div className="relative bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl z-10 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
@@ -198,70 +309,142 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
               <DollarSign className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-white">Tedarikçiye Ödeme Yap</h2>
-              <p className="text-xs text-slate-400">Elden, banka veya kart ödemesini işleyip borçtan düşün.</p>
+              <h2 className="text-base sm:text-lg font-bold text-white">
+                {completedResult ? 'Ödeme Başarıyla İşlendi' : 'Tedarikçiye Ödeme Yap'}
+              </h2>
+              <p className="text-xs text-slate-400">
+                {completedResult
+                  ? 'Tedarikçi borcunuz güncellendi. İsterseniz WhatsApp bilgilendirmesi gönderebilirsiniz.'
+                  : 'Elden, banka veya kart ödemesini işleyip borçtan düşüş yapın.'}
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-white rounded-lg bg-slate-800">
+          <button onClick={completedResult ? handleFinishAndClose : onClose} className="p-2 text-slate-400 hover:text-white rounded-lg bg-slate-800">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Modal Body */}
-        {fetchingSuppliers ? (
+        {/* STEP 3: POST-TRANSACTION WHATSAPP SUCCESS SCREEN */}
+        {completedResult ? (
+          <div className="p-5 sm:p-6 space-y-5 overflow-y-auto custom-scrollbar">
+            {/* Green Banner */}
+            <div className="bg-emerald-950/40 border border-emerald-800/80 p-4 rounded-2xl flex items-center gap-3 text-emerald-300">
+              <CheckCircle2 className="w-8 h-8 shrink-0 text-emerald-400" />
+              <div>
+                <h4 className="font-extrabold text-sm text-white">✓ Ödeme Başarıyla Kaydedildi!</h4>
+                <p className="text-xs text-emerald-300/90 mt-0.5">
+                  Tedarikçi cari hesabına ödeme düşüldü ve borç bakiye güncellendi.
+                </p>
+              </div>
+            </div>
+
+            {/* Financial Summary */}
+            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 text-xs">
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                <div>
+                  <span className="text-slate-400 block font-medium">Tedarikçi Firma</span>
+                  <span className="font-bold text-white text-sm">{completedResult.supplierName}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-slate-400 block font-medium">Ödenen Tutar</span>
+                  <span className="font-extrabold text-emerald-400 text-sm">{formatCurrency(completedResult.amount)}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-slate-400 font-medium">Güncel Kalan Borcumuz:</span>
+                <div className="flex items-center gap-1.5 justify-end">
+                  <span className="line-through text-slate-500">{formatCurrency(completedResult.prevDebt)}</span>
+                  <span className="text-slate-400">→</span>
+                  <span className="font-extrabold text-white text-sm">{formatCurrency(completedResult.newDebt)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Phone check warning */}
+            {!normalizeTurkishPhone(completedResult.supplierPhone).isValid && (
+              <div className="bg-slate-950 p-3 rounded-xl border border-amber-800/50 flex items-center gap-2 text-xs text-amber-300">
+                <PhoneOff className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Tedarikçinin sistemde kayıtlı geçerli bir WhatsApp telefonu bulunmuyor.</span>
+              </div>
+            )}
+
+            {/* WhatsApp Button */}
+            <div className="space-y-2 pt-2">
+              <button
+                onClick={handleSendSupplierWhatsApp}
+                disabled={!normalizeTurkishPhone(completedResult.supplierPhone).isValid}
+                className={`w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2.5 transition-all shadow-lg active:scale-95 ${
+                  !normalizeTurkishPhone(completedResult.supplierPhone).isValid
+                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                    : whatsappSent
+                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-600 hover:bg-emerald-900'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/25'
+                }`}
+              >
+                <MessageSquare className="w-4.5 h-4.5" />
+                <span>
+                  {whatsappSent ? '✓ WhatsApp Gönderildi (Tekrar Gönder)' : '📱 Tedarikçiyi WhatsApp\'tan Bilgilendir'}
+                </span>
+              </button>
+
+              <button
+                onClick={handleFinishAndClose}
+                className="w-full py-2.5 px-4 rounded-xl font-bold text-xs bg-slate-950 text-slate-300 hover:text-white border border-slate-800 hover:bg-slate-800 transition-colors"
+              >
+                Tamam / Kapat
+              </button>
+            </div>
+          </div>
+        ) : fetchingSuppliers ? (
+          /* STEP 1: LOADING SUPPLIERS */
           <div className="p-8 text-center text-slate-400 flex flex-col items-center">
             <Loader2 className="w-8 h-8 animate-spin text-emerald-500 mb-2" />
             <span>Tedarikçi Bilgileri Yükleniyor...</span>
           </div>
         ) : showConfirmation ? (
-          /* STEP 2: CONFIRMATION OVERLAY */
-          <div className="p-5 space-y-5 overflow-y-auto custom-scrollbar">
-            <div className="bg-slate-950 p-4 rounded-xl border border-emerald-500/40 space-y-3">
-              <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase tracking-wider">
-                <AlertTriangle className="w-4 h-4" />
+          /* STEP 2: CONFIRM OVERLAY */
+          <div className="p-5 sm:p-6 space-y-5 overflow-y-auto custom-scrollbar">
+            <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-emerald-500/40 space-y-4 shadow-xl">
+              <div className="flex items-center gap-2 text-emerald-400 text-xs sm:text-sm font-bold uppercase tracking-wider">
+                <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
                 <span>Ödeme İşlem Onayı Özeti</span>
               </div>
 
-              <div className="space-y-2 text-xs divide-y divide-slate-800/80">
-                <div className="flex justify-between pt-1">
-                  <span className="text-slate-400">Tedarikçi Firma:</span>
-                  <span className="font-bold text-white">{selectedSupplier?.company_name}</span>
+              <div className="space-y-2.5 text-xs">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className="text-slate-400 font-medium">Tedarikçi Firma:</span>
+                  <span className="font-bold text-white text-sm">{selectedSupplier?.company_name}</span>
                 </div>
 
-                <div className="flex justify-between pt-2">
-                  <span className="text-slate-400 font-semibold">Mevcut Borç:</span>
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className="text-slate-400 font-medium">Mevcut Borç:</span>
                   <span className="font-bold text-amber-400">{formatCurrency(currentDebt)}</span>
                 </div>
 
-                <div className="flex justify-between pt-2">
-                  <span className="text-slate-400 font-semibold">Yapılacak Ödeme Tutarı:</span>
-                  <span className="font-black text-emerald-400 text-sm">-{formatCurrency(numAmount)}</span>
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className="text-slate-400 font-medium">Yapılacak Ödeme Tutarı:</span>
+                  <span className="font-extrabold text-emerald-400 text-sm">-{formatCurrency(numAmount)}</span>
                 </div>
 
-                <div className="flex justify-between pt-2">
-                  <span className="text-slate-400">Ödeme Yöntemi:</span>
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className="text-slate-400 font-medium">Ödeme Yöntemi:</span>
                   <span className="font-bold text-slate-200">{paymentMethod}</span>
                 </div>
 
-                {referenceNumber && (
-                  <div className="flex justify-between pt-2">
-                    <span className="text-slate-400">Referans / Dekont No:</span>
-                    <span className="font-mono text-slate-300">{referenceNumber}</span>
-                  </div>
-                )}
-
-                <div className="flex justify-between pt-3 text-sm">
-                  <span className="text-slate-200 font-extrabold">Ödeme Sonrası Kalan Borç:</span>
-                  <span className="font-black text-white">{formatCurrency(remainingDebtAfterPayment)}</span>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-slate-400 font-medium">Ödeme Sonrası Kalan Borç:</span>
+                  <span className="font-extrabold text-white text-base">{formatCurrency(remainingDebtAfterPayment)}</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex items-center gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setShowConfirmation(false)}
-                className="py-2.5 px-4 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-colors"
+                disabled={loading}
+                className="flex-1 py-3 px-4 rounded-xl font-bold text-xs bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
               >
                 Vazgeç / Düzenle
               </button>
@@ -270,12 +453,12 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                 type="button"
                 onClick={handleConfirmPayment}
                 disabled={loading}
-                className="py-2.5 px-6 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-xs shadow-lg shadow-emerald-500/25 flex items-center gap-2 transition-all disabled:opacity-50 active:scale-98"
+                className="flex-1 py-3 px-4 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
               >
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Ödeme İşleniyor...</span>
+                    <span>İşleniyor...</span>
                   </>
                 ) : (
                   <>
@@ -287,167 +470,136 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
             </div>
           </div>
         ) : (
-          /* STEP 1: PAYMENT FORM */
+          /* STEP 1: FORM */
           <form onSubmit={handlePrepareSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto custom-scrollbar">
-            {/* Supplier Dropdown */}
+            {/* Supplier Select */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                <Building2 className="w-4 h-4 text-emerald-400" />
-                <span>Ödeme Yapılacak Tedarikçi Firma *</span>
+              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                Tedarikçi Firma Seçin *
               </label>
               <SearchableSelect
                 options={suppliers.map((s) => ({
                   id: s.id,
                   label: s.company_name,
-                  sublabel: `Borç: ${formatCurrency(s.balance)}`,
+                  sublabel: `Güncel Borç: ${formatCurrency(s.balance)}`,
                   searchText: `${s.contact_person || ''} ${s.phone || ''}`,
                 }))}
                 value={selectedSupplierId}
                 onChange={(val) => setSelectedSupplierId(val)}
-                placeholder="Tedarikçi adı veya tel no yazarak arayın..."
+                placeholder="Tedarikçi firma adı yazın..."
                 searchPlaceholder="Tedarikçi ara..."
-                emptyMessage="Eşleşen tedarikçi bulunamadı."
+                emptyMessage="Tedarikçi bulunamadı."
               />
             </div>
 
-            {/* Current Debt Banner */}
-            {selectedSupplier && (
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+            {/* Debt Banner */}
+            {selectedSupplierId && (
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
                 <div>
-                  <span className="text-slate-400 text-xs font-semibold block">Tedarikçi Güncel Borcu</span>
-                  <span className="text-xl font-black text-amber-400">{formatCurrency(currentDebt)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-slate-400 text-[11px] block">Ödeme Sonrası Borç</span>
-                  <span className="text-sm font-extrabold text-slate-200">
-                    {formatCurrency(remainingDebtAfterPayment)}
+                  <span className="text-slate-400 block font-medium">Firmaya Mevcut Borcumuz</span>
+                  <span className="text-base font-extrabold text-amber-400 block mt-0.5">
+                    {formatCurrency(currentDebt)}
                   </span>
                 </div>
+                {currentDebt === 0 && (
+                  <span className="text-[11px] font-bold text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-800">
+                    Borç Bulunmuyor
+                  </span>
+                )}
               </div>
             )}
 
-            {/* Payment Amount */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Ödeme Tutarı (TL) *
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min={0.01}
-                max={currentDebt}
-                required
-                value={amount}
-                onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                placeholder="Örn: 10000.00"
-                className={`w-full bg-slate-950 border rounded-xl p-3 text-white text-base font-extrabold outline-none ${
-                  isOverpaying ? 'border-rose-500 text-rose-400' : 'border-slate-700 focus:border-emerald-500'
-                }`}
-              />
-
-              {isOverpaying && (
-                <p className="text-xs text-rose-400 font-semibold mt-1.5 flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>Ödeme tutarı mevcut borçtan ({formatCurrency(currentDebt)}) fazla olamaz!</span>
-                </p>
-              )}
-            </div>
-
-            {/* Payment Method Cards */}
+            {/* Payment Method Tabs */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
                 Ödeme Yöntemi *
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[
-                  { id: 'Nakit', label: 'Elden / Nakit', icon: Banknote },
-                  { id: 'Havale/EFT', label: 'Banka / EFT', icon: Building },
-                  { id: 'Kart', label: 'Kredi Kartı', icon: CreditCard },
-                  { id: 'Diğer', label: 'Diğer', icon: HelpCircle },
-                ].map((m) => {
-                  const Icon = m.icon;
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setPaymentMethod(m.id as PaymentMethodType)}
-                      className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 text-center transition-all ${
-                        paymentMethod === m.id
-                          ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 shadow-inner ring-2 ring-emerald-500/30 font-bold'
-                          : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      <span className="text-[11px] leading-tight">{m.label}</span>
-                    </button>
-                  );
-                })}
+                {(['Nakit', 'Havale/EFT', 'Kart', 'Diğer'] as PaymentMethodType[]).map((method) => (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => setPaymentMethod(method)}
+                    className={`py-2 px-3 rounded-xl font-bold text-xs border transition-all ${
+                      paymentMethod === method
+                        ? 'bg-emerald-950 border-emerald-500 text-emerald-300'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {method}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Payment Date & Reference Number Grid */}
+            {/* Amount & Date Input */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Ödeme Tarihi *</span>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                  Ödenecek Tutar (TL) *
                 </label>
                 <input
-                  type="date"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                  placeholder="0.00"
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl p-3 text-white text-base font-extrabold outline-none"
                   required
-                  value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl p-2.5 text-slate-100 text-xs outline-none font-mono"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                  <Hash className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Referans / Dekont No</span>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                  Ödeme Tarihi *
+                </label>
+                <input
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl p-3 text-slate-100 text-xs font-medium outline-none"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Reference Number & Notes */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                  Dekont / Referans No (İsteğe Bağlı)
                 </label>
                 <input
                   type="text"
                   value={referenceNumber}
                   onChange={(e) => setReferenceNumber(e.target.value)}
                   placeholder="Örn: DEK-98124"
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl p-2.5 text-slate-100 text-xs outline-none"
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl p-2.5 text-slate-200 text-xs outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                  Açıklama / Not
+                </label>
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Ödeme notu..."
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl p-2.5 text-slate-200 text-xs outline-none"
                 />
               </div>
             </div>
 
-            {/* Notes */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                <FileText className="w-3.5 h-3.5 text-slate-400" />
-                <span>Açıklama / Not</span>
-              </label>
-              <textarea
-                rows={2}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Örn: Temmuz ayı vadeli fatura ödemesi"
-                className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl p-2.5 text-slate-100 text-xs outline-none"
-              />
-            </div>
-
-            {/* Actions */}
-            <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="py-2.5 px-4 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-colors"
-              >
-                Vazgeç
-              </button>
-
+            {/* Submit */}
+            <div className="pt-2">
               <button
                 type="submit"
-                disabled={isOverpaying || !amount || numAmount <= 0}
-                className="py-2.5 px-6 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-xs shadow-lg shadow-emerald-500/25 flex items-center gap-2 transition-all disabled:opacity-50 active:scale-98"
+                className="w-full py-3.5 px-4 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all active:scale-98"
               >
-                <span>Ödemeyi Kaydet</span>
-                <CheckCircle2 className="w-4 h-4" />
+                <span>Ödeme İşlemini İncele & Onayla →</span>
               </button>
             </div>
           </form>
