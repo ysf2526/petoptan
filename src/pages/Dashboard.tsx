@@ -6,7 +6,6 @@ import { DashboardStats, Product, Sale, OrderStatus, ORDER_STATUS_MAP } from '@/
 import { useToast } from '@/context/ToastContext';
 import { parseErrorMessage } from '@/utils/errors';
 import { LayoutContextType } from '@/components/layout/Layout';
-import { BusinessAssistantWidget } from '@/components/dashboard/BusinessAssistantWidget';
 import { SaleDetailModal } from '@/components/modals/SaleDetailModal';
 import { ConfirmDeliveryModal } from '@/components/modals/ConfirmDeliveryModal';
 import { CancelSaleModal } from '@/components/modals/CancelSaleModal';
@@ -552,9 +551,6 @@ export const Dashboard: React.FC = () => {
           </Link>
         </div>
       </div>
-
-      {/* 🤖 İŞLETME ASİSTANI WIDGET */}
-      <BusinessAssistantWidget onRefreshParent={fetchDashboardData} />
 
       {/* TODAY'S SNAPSHOT STRIP */}
       <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">

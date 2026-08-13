@@ -587,34 +587,20 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                                   </div>
 
                                   <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                                    <span className="text-slate-400">Alış: <strong className="text-slate-200">{formatCurrency(it.purchase_price)}</strong></span>
-                                    <span className="text-slate-500">|</span>
-                                    <span className="text-slate-400">Standart Satış: <strong className="text-slate-200">{formatCurrency(it.std_sale_price)}</strong></span>
+                                    <span className="text-slate-400">Standart Satış Fiyatı: <strong className="text-slate-200">{formatCurrency(it.std_sale_price)}</strong></span>
 
                                     {/* Indicator Badges */}
                                     {isLoss && (
                                       <span className="px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800 text-[10px] font-black flex items-center gap-1">
                                         <AlertTriangle className="w-3 h-3 text-rose-400 animate-pulse" />
-                                        <span>ZARARLI SATIŞ (-{formatCurrency(unitLossAmount)} Birim Zarar)</span>
-                                      </span>
-                                    )}
-
-                                    {isZeroProfit && (
-                                      <span className="px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 text-[10px] font-bold">
-                                        ⚠️ Kâr Oluşmuyor (%0 Marj)
+                                        <span>ZARARLI SATIŞ</span>
                                       </span>
                                     )}
 
                                     {isDiscounted && (
                                       <span className="px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800 text-[10px] font-bold flex items-center gap-1">
                                         <Tag className="w-3 h-3 text-indigo-400" />
-                                        <span>%{discountPct} İndirim (Kâr: +{formatCurrency(unitDiff)})</span>
-                                      </span>
-                                    )}
-
-                                    {!isLoss && !isZeroProfit && !isDiscounted && (
-                                      <span className="text-[10px] text-emerald-400 font-semibold">
-                                        (Kâr: +{formatCurrency(unitDiff)} - %{marginPct} Marj)
+                                        <span>%{discountPct} İndirimli Fiyat</span>
                                       </span>
                                     )}
                                   </div>
@@ -796,22 +782,15 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
 
               {/* Footer Bar Summary */}
               <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-6 text-xs w-full sm:w-auto justify-around sm:justify-start">
+                <div className="flex items-center gap-6 text-xs w-full sm:w-auto justify-between sm:justify-start">
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Toplam Alış Maliyeti</span>
-                    <span className="font-bold text-slate-300 text-sm">{formatCurrency(totals.totalCost)}</span>
+                    <span className="text-slate-400 block text-[11px]">Toplam Eklenen Kalem</span>
+                    <span className="font-bold text-slate-200 text-sm">{items.length} Kalem Ürün</span>
                   </div>
 
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Tahmini Brüt Kâr/Zarar</span>
-                    <span className={`font-black text-sm ${totals.totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {totals.totalProfit >= 0 ? `+${formatCurrency(totals.totalProfit)}` : formatCurrency(totals.totalProfit)}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-slate-400 block text-[11px]">Genel Toplam Tutar</span>
-                    <span className="font-black text-white text-base sm:text-lg">{formatCurrency(totals.grandTotal)}</span>
+                    <span className="text-slate-400 block text-[11px]">Genel Toplam Satış Tutarı</span>
+                    <span className="font-black text-emerald-400 text-base sm:text-xl">{formatCurrency(totals.grandTotal)}</span>
                   </div>
                 </div>
 
