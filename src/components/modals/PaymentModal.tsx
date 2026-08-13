@@ -400,7 +400,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     try {
       const text = buildSupplierOffsetWhatsAppMessage(
         completedResult.supplierName,
-        completedResult.customerName,
         completedResult.amount,
         completedResult.newSupDebt || 0
       );
@@ -411,7 +410,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         logWhatsAppShareAttempt('offset', completedResult.paymentId, phoneNorm.normalized, {
           target: 'supplier',
           supplier_name: completedResult.supplierName,
-          customer_name: completedResult.customerName,
           amount: completedResult.amount,
         });
       }

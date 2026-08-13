@@ -9,7 +9,7 @@ export interface PhoneNormalizationResult {
 }
 
 /**
-  Normalizes Turkish mobile phone numbers into international 905XXXXXXXXX format.
+ * Normalizes Turkish mobile phone numbers into international 905XXXXXXXXX format.
  */
 export function normalizeTurkishPhone(phone?: string | null): PhoneNormalizationResult {
   if (!phone) {
@@ -64,7 +64,7 @@ export function buildCustomerCollectionWhatsAppMessage(
 ): string {
   return `Merhaba ${customerName},
 
-${businessName || 'Petshop Toptan Satış'} hesabınıza ${formatCurrency(amount)} ödemeniz işlenmiştir.
+${formatCurrency(amount)} ödemeniz hesabınıza işlenmiştir.
 
 Güncel cari borcunuz: ${formatCurrency(newBalance)}
 
@@ -73,6 +73,7 @@ Teşekkür ederiz.`;
 
 /**
  * Builds Turkish WhatsApp text message for Supplier Payment (Tedarikçiye Ödeme).
+ * ABSOLUTE PRIVACY GUARANTEE: Contains NO customer or offset data whatsoever.
  */
 export function buildSupplierPaymentWhatsAppMessage(
   supplierName: string,
@@ -81,15 +82,16 @@ export function buildSupplierPaymentWhatsAppMessage(
 ): string {
   return `Merhaba ${supplierName},
 
-Bugün hesabınıza ${formatCurrency(amount)} ödeme gerçekleştirilmiştir.
+${formatCurrency(amount)} ödeme gerçekleştirilmiştir.
 
-Güncel borcumuz: ${formatCurrency(newBalance)}
+Güncel borç bakiyemiz: ${formatCurrency(newBalance)}
 
-Bilginize.`;
+Teşekkür ederiz.`;
 }
 
 /**
  * Builds Turkish WhatsApp text message for Customer Offset Notification (Mahsup Sonrası Müşteri Mesajı).
+ * Customer sees only their own account payment & updated debt.
  */
 export function buildCustomerOffsetWhatsAppMessage(
   customerName: string,
@@ -99,7 +101,7 @@ export function buildCustomerOffsetWhatsAppMessage(
 ): string {
   return `Merhaba ${customerName},
 
-${businessName || 'Petshop Toptan Satış'} hesabınıza ${formatCurrency(amount)} ödemeniz işlenmiştir.
+${formatCurrency(amount)} ödemeniz hesabınıza işlenmiştir.
 
 Güncel cari borcunuz: ${formatCurrency(newBalance)}
 
@@ -108,20 +110,16 @@ Teşekkür ederiz.`;
 
 /**
  * Builds Turkish WhatsApp text message for Supplier Offset Notification (Mahsup Sonrası Tedarikçi Mesajı).
+ * STRICT PRIVACY REQUIREMENT: Takes NO customer parameters!
+ * The supplier message MUST NOT contain customer name, business name, phone, purchase details or the word "mahsup".
+ * It is structured identically to a clean direct payment notification.
  */
 export function buildSupplierOffsetWhatsAppMessage(
   supplierName: string,
-  customerName: string,
   amount: number,
   newBalance: number
 ): string {
-  return `Merhaba ${supplierName},
-
-${customerName} tarafından gerçekleştirilen ${formatCurrency(amount)} tutarındaki tahsilat, ${supplierName} cari hesabımıza mahsup edilmiştir.
-
-Mahsup sonrası güncel borcumuz: ${formatCurrency(newBalance)}
-
-Bilginize.`;
+  return buildSupplierPaymentWhatsAppMessage(supplierName, amount, newBalance);
 }
 
 /**
