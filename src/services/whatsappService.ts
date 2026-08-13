@@ -8,6 +8,13 @@ export interface PhoneNormalizationResult {
   isValid: boolean;
 }
 
+export interface WhatsAppAuditStatus {
+  customerSent: boolean;
+  supplierSent: boolean;
+  customerSentAt?: string;
+  supplierSentAt?: string;
+}
+
 /**
  * Normalizes Turkish mobile phone numbers into international 905XXXXXXXXX format.
  */
@@ -253,6 +260,47 @@ export async function logWhatsAppShareAttempt(
     });
   } catch (err) {
     console.error('WhatsApp audit log kaydı hatası:', err);
+  }
+}
+
+/**
+ * Queries audit_logs to check if WhatsApp was sent for given payment IDs.
+ */
+export async function getWhatsAppAuditStatusesForPayments(
+  paymentIds: string[]
+): Promise<Record<string, WhatsAppAuditStatus>> {
+  if (!paymentIds || paymentIds.length === 0) return {};
+
+  try {
+    const { data: logs } = await supabase
+      .from('audit_logs')
+      .select('entity_id, details, created_at')
+      .eq('action', 'WHATSAPP_SHARE_ATTEMPT')
+      .in('entity_id', paymentIds);
+
+    const map: Record<string, WhatsAppAuditStatus> = {};
+    paymentIds.forEach((id) => {
+      map[id] = { customerSent: false, supplierSent: false };
+    });
+
+    logs?.forEach((log) => {
+      const pId = log.entity_id;
+      if (map[pId]) {
+        const target = log.details?.target;
+        if (target === 'customer' || !target) {
+          map[pId].customerSent = true;
+          map[pId].customerSentAt = log.created_at;
+        } else if (target === 'supplier') {
+          map[pId].supplierSent = true;
+          map[pId].supplierSentAt = log.created_at;
+        }
+      }
+    });
+
+    return map;
+  } catch (err) {
+    console.error('Error fetching WhatsApp audit statuses:', err);
+    return {};
   }
 }
 
