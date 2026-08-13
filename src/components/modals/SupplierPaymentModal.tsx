@@ -212,7 +212,11 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
             }).select('id').single();
 
             if (!insErr) {
-              await supabase.rpc('recalculate_all_supplier_ledger_balances').catch(() => {});
+              try {
+                await supabase.rpc('recalculate_all_supplier_ledger_balances');
+              } catch (e) {
+                // Ignore background recalculate error if RPC not found
+              }
 
               showSuccess(`"${selectedSupplier.company_name}" firmasına ${formatCurrency(numAmount)} tutarında ödeme işlendi!`);
               if (onSuccess) onSuccess();
