@@ -205,18 +205,35 @@ export const Dashboard: React.FC = () => {
 
       const { data: supplierLedgers } = await supabase
         .from('supplier_ledger')
-        .select('supplier_id, balance, created_at')
+        .select('supplier_id, balance, credit, debit, movement_type')
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
-      const supplierDebtMap: Record<string, number> = {};
+      const supplierCredMap: Record<string, number> = {};
+      const supplierDebMap: Record<string, number> = {};
+      const supplierLatestBalMap: Record<string, number> = {};
+
       supplierLedgers?.forEach((sl) => {
-        if (supplierDebtMap[sl.supplier_id] === undefined) {
-          supplierDebtMap[sl.supplier_id] = Number(sl.balance || 0);
+        if (supplierLatestBalMap[sl.supplier_id] === undefined) {
+          supplierLatestBalMap[sl.supplier_id] = Number(sl.balance || 0);
+        }
+        const c = Number(sl.credit || 0);
+        const d = Number(sl.debit || 0);
+        if (sl.movement_type === 'PURCHASE' || sl.movement_type === 'ADJUSTMENT') {
+          supplierCredMap[sl.supplier_id] = (supplierCredMap[sl.supplier_id] || 0) + c;
+        } else {
+          supplierDebMap[sl.supplier_id] = (supplierDebMap[sl.supplier_id] || 0) + d;
         }
       });
 
-      const totalSuppDebt = Object.values(supplierDebtMap).reduce((acc, curr) => acc + Math.max(0, curr), 0);
+      let totalSuppDebt = 0;
+      const allSupIds = Array.from(new Set(supplierLedgers?.map((sl) => sl.supplier_id) || []));
+      allSupIds.forEach((sId) => {
+        const latest = supplierLatestBalMap[sId] || 0;
+        const net = (supplierCredMap[sId] || 0) - (supplierDebMap[sId] || 0);
+        const debt = latest > 0 ? latest : Math.max(0, net);
+        totalSuppDebt += debt;
+      });
 
       // 6. Due This Week & Overdue
       const { data: activeSchedules } = await supabase

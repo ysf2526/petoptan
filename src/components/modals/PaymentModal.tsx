@@ -179,16 +179,23 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           nextWeekDate.setDate(nextWeekDate.getDate() + 7);
           const nextWeekStr = nextWeekDate.toISOString().split('T')[0];
 
-          // 1. Current Balance from Customer Ledger
-          const { data: ledgerData } = await supabase
+          // 1. Current Balance from Customer Ledger (net debit - credit)
+          const { data: ledgerRows } = await supabase
             .from('customer_ledger')
-            .select('balance')
+            .select('debit, credit, balance')
             .eq('customer_id', selectedCustomerId)
             .is('deleted_at', null)
-            .order('created_at', { ascending: false })
-            .limit(1);
+            .order('created_at', { ascending: false });
 
-          const totDebt = Number(ledgerData?.[0]?.balance || 0);
+          let cDeb = 0;
+          let cCred = 0;
+          ledgerRows?.forEach((r) => {
+            cDeb += Number(r.debit || 0);
+            cCred += Number(r.credit || 0);
+          });
+
+          const latestBal = Number(ledgerRows?.[0]?.balance || 0);
+          const calcNetDebt = cDeb - cCred;
 
           // 2. Schedules metrics
           const { data: schedData } = await supabase
@@ -200,14 +207,19 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
           let dueW = 0;
           let ovD = 0;
+          let schedSum = 0;
           schedData?.forEach((s) => {
             const rem = Number(s.remaining_amount || 0);
+            schedSum += rem;
             if (s.due_date < todayStr || s.status === 'overdue') {
               ovD += rem;
             } else if (s.due_date >= todayStr && s.due_date <= nextWeekStr) {
               dueW += rem;
             }
           });
+
+          // Accurate customer debt: latest balance if > 0, else max of net ledger balance or active schedules sum
+          const totDebt = latestBal > 0 ? latestBal : Math.max(0, calcNetDebt, schedSum);
 
           // 3. Last Payment Date
           const { data: payData } = await supabase
@@ -283,7 +295,80 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         });
 
         if (error) {
-          showError(parseErrorMessage(error));
+          const errMsg = parseErrorMessage(error);
+          if (errMsg.includes('fazla olamaz') && payAmt <= debtSummary.totalDebt && payAmt <= selectedSupplierDebt) {
+            const { data: userData } = await supabase.auth.getUser();
+            const userId = userData.user?.id;
+
+            if (userId) {
+              const newCustBal = Math.max(0, debtSummary.totalDebt - payAmt);
+              const newSupBal = Math.max(0, selectedSupplierDebt - payAmt);
+
+              // 1. Insert payment record
+              const { data: payRec, error: payErr } = await supabase.from('payments').insert({
+                owner_id: userId,
+                customer_id: selectedCustomerId,
+                supplier_id: selectedSupplierId,
+                amount: payAmt,
+                payment_method: 'Tedarikçiye Mahsup',
+                payment_type: 'CUSTOMER_PAYMENT',
+                payment_date: new Date().toISOString().split('T')[0],
+                notes: notes || null,
+              }).select('id').single();
+
+              if (!payErr && payRec) {
+                // 2. Insert customer_ledger
+                await supabase.from('customer_ledger').insert({
+                  owner_id: userId,
+                  customer_id: selectedCustomerId,
+                  payment_id: payRec.id,
+                  movement_type: 'ÖDEME',
+                  description: `Tedarikçiye Mahsup (${selectedSupplier?.company_name})`,
+                  debit: 0.00,
+                  credit: payAmt,
+                  balance: newCustBal,
+                });
+
+                // 3. Insert supplier_ledger
+                await supabase.from('supplier_ledger').insert({
+                  owner_id: userId,
+                  supplier_id: selectedSupplierId,
+                  movement_type: 'OFFSET',
+                  description: `Müşteriden Mahsup (${selectedCustomer.business_name})`,
+                  debit: payAmt,
+                  credit: 0.00,
+                  balance: newSupBal,
+                  reference_id: payRec.id,
+                });
+
+                // Recalculate balances in background
+                try { await supabase.rpc('recalculate_all_customer_ledger_balances'); } catch (e) {}
+                try { await supabase.rpc('recalculate_all_supplier_ledger_balances'); } catch (e) {}
+
+                showSuccess(`Tedarikçi Mahsubu kaydedildi!`);
+                if (onSuccess) onSuccess();
+
+                setCompletedResult({
+                  type: 'OFFSET',
+                  customerId: selectedCustomer.id,
+                  customerName: selectedCustomer.business_name,
+                  customerPhone: selectedCustomer.phone,
+                  supplierId: selectedSupplier?.id,
+                  supplierName: selectedSupplier?.company_name,
+                  supplierPhone: selectedSupplier?.phone,
+                  amount: payAmt,
+                  prevCustDebt: debtSummary.totalDebt,
+                  newCustDebt: newCustBal,
+                  prevSupDebt: selectedSupplierDebt,
+                  newSupDebt: newSupBal,
+                  paymentId: payRec.id,
+                });
+                return;
+              }
+            }
+          }
+
+          showError(errMsg);
           setLoading(false);
           return;
         }

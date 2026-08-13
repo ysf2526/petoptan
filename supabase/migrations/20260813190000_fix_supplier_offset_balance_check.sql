@@ -57,12 +57,18 @@ BEGIN
   FROM public.customer_ledger
   WHERE customer_id = p_customer_id AND owner_id = v_owner_id AND deleted_at IS NULL;
 
+  IF v_cust_prev_balance <= 0 THEN
+    SELECT COALESCE(SUM(remaining_amount), 0.00) INTO v_cust_prev_balance
+    FROM public.payment_schedules
+    WHERE customer_id = p_customer_id AND owner_id = v_owner_id AND status IN ('pending', 'partially_paid', 'overdue') AND deleted_at IS NULL;
+  END IF;
+
   IF v_cust_prev_balance < 0 THEN
     v_cust_prev_balance := 0.00;
   END IF;
 
   IF v_cust_prev_balance < p_amount THEN
-    RAISE EXCEPTION 'Mahsup tutarı (%) müşterinin kalan borcundan (%) fazla olamaz.', p_amount, v_cust_prev_balance;
+    RAISE EXCEPTION 'Mahsup tutarı ( % TL ) müşterinin kalan borcundan ( % TL ) fazla olamaz.', p_amount, v_cust_prev_balance;
   END IF;
 
   -- Get Supplier's true current net balance: SUM(credit) - SUM(debit)
