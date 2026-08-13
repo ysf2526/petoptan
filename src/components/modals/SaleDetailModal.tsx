@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { formatCurrency, formatDateTime, formatDate } from '@/utils/formatters';
-import { Sale, SaleItem, PaymentSchedule, Customer, AuditLog } from '@/types/database.types';
+import { Sale, SaleItem, PaymentSchedule, Customer, AuditLog, OrderStatus, ORDER_STATUS_MAP } from '@/types/database.types';
 import { LayoutContextType } from '@/components/layout/Layout';
 import { EditSaleModal } from '@/components/modals/EditSaleModal';
 import { CancelSaleModal } from '@/components/modals/CancelSaleModal';
@@ -225,6 +225,30 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
             </div>
           ) : sale ? (
             <div className="p-4 sm:p-6 overflow-y-auto space-y-5 custom-scrollbar">
+              {/* Operational Status Header Banner */}
+              {(() => {
+                const ordStatus: OrderStatus = (sale.order_status as OrderStatus) || (sale.status === 'cancelled' ? 'cancelled' : 'received');
+                const conf = ORDER_STATUS_MAP[ordStatus] || ORDER_STATUS_MAP.received;
+                return (
+                  <div className={`p-4 rounded-xl border ${conf.badgeBg} ${conf.badgeBorder} flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg`}>
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{conf.emoji}</span>
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">Sipariş Operasyonel Durumu</span>
+                        <h3 className={`text-lg sm:text-xl font-black ${conf.badgeText} tracking-wide`}>
+                          {conf.label}
+                        </h3>
+                      </div>
+                    </div>
+
+                    <div className="text-right text-xs space-y-0.5">
+                      <p className="text-slate-300 font-semibold">Sipariş: <span className="font-mono font-bold text-white">#{sale.sale_number}</span></p>
+                      <p className="text-slate-400 font-medium">Tarih: <span className="font-mono text-slate-200">{formatDateTime(sale.created_at)}</span></p>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Financial Metrics Strip */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
@@ -247,6 +271,57 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                   <span className="text-base font-extrabold text-amber-400 block mt-0.5">{formatCurrency(sale.remaining_debt || 0)}</span>
                 </div>
               </div>
+
+              {/* Status Change Timeline */}
+              {(() => {
+                const statusLogs = auditLogs
+                  .filter((l) => l.action === 'ORDER_STATUS_CHANGED')
+                  .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+                return (
+                  <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3">
+                    <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-brand-400" />
+                      <span>Sipariş Durum Geçmişi</span>
+                    </h3>
+
+                    {statusLogs.length === 0 ? (
+                      <div className="flex items-center gap-2 text-xs text-slate-400 font-mono py-1">
+                        <span>🟡 ALINDI</span>
+                        <span className="text-slate-600">—</span>
+                        <span>{formatDateTime(sale.created_at)}</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {statusLogs.map((log, index) => {
+                          const oldSt: OrderStatus = log.details?.old_status;
+                          const newSt: OrderStatus = log.details?.new_status || 'received';
+                          const oldConf = oldSt ? ORDER_STATUS_MAP[oldSt] : null;
+                          const newConf = ORDER_STATUS_MAP[newSt] || ORDER_STATUS_MAP.received;
+
+                          return (
+                            <div key={log.id} className="flex items-center gap-3 text-xs bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80">
+                              <span className="text-slate-500 font-mono shrink-0 text-[11px]">
+                                {formatDateTime(log.created_at)}
+                              </span>
+                              <div className="flex items-center gap-2 font-bold font-mono">
+                                {oldConf ? (
+                                  <>
+                                    <span className={oldConf.badgeText}>{oldConf.emoji} {oldConf.label}</span>
+                                    <span className="text-slate-500">↓</span>
+                                  </>
+                                ) : null}
+                                <span className={newConf.badgeText}>{newConf.emoji} {newConf.label}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
 
               {/* Items Table */}
               <div>

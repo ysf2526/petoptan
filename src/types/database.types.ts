@@ -8,6 +8,79 @@ export type PaymentType = 'pesin' | 'vadeli';
 
 export type ScheduleStatus = 'pending' | 'partially_paid' | 'paid' | 'overdue';
 
+export type OrderStatus = 'received' | 'preparing' | 'prepared' | 'delivered' | 'cancelled';
+
+export interface OrderStatusConfig {
+  key: OrderStatus;
+  label: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
+  emoji: string;
+  nextStatus: OrderStatus | null;
+  nextActionLabel: string | null;
+  nextActionColor: string | null;
+}
+
+export const ORDER_STATUS_MAP: Record<OrderStatus, OrderStatusConfig> = {
+  received: {
+    key: 'received',
+    label: 'ALINDI',
+    badgeBg: 'bg-amber-950/70',
+    badgeText: 'text-amber-300',
+    badgeBorder: 'border-amber-700/60',
+    emoji: '🟡',
+    nextStatus: 'preparing',
+    nextActionLabel: 'Hazırlamaya Başla',
+    nextActionColor: 'bg-amber-600 hover:bg-amber-500 text-white',
+  },
+  preparing: {
+    key: 'preparing',
+    label: 'HAZIRLANIYOR',
+    badgeBg: 'bg-orange-950/70',
+    badgeText: 'text-orange-300',
+    badgeBorder: 'border-orange-700/60',
+    emoji: '🟠',
+    nextStatus: 'prepared',
+    nextActionLabel: 'Hazırlandı',
+    nextActionColor: 'bg-orange-600 hover:bg-orange-500 text-white',
+  },
+  prepared: {
+    key: 'prepared',
+    label: 'HAZIRLANDI',
+    badgeBg: 'bg-emerald-950/70',
+    badgeText: 'text-emerald-300',
+    badgeBorder: 'border-emerald-700/60',
+    emoji: '🟢',
+    nextStatus: 'delivered',
+    nextActionLabel: 'Teslim Edildi',
+    nextActionColor: 'bg-emerald-600 hover:bg-emerald-500 text-white',
+  },
+  delivered: {
+    key: 'delivered',
+    label: 'TESLİM EDİLDİ',
+    badgeBg: 'bg-sky-950/70',
+    badgeText: 'text-sky-300',
+    badgeBorder: 'border-sky-700/60',
+    emoji: '🔵',
+    nextStatus: null,
+    nextActionLabel: null,
+    nextActionColor: null,
+  },
+  cancelled: {
+    key: 'cancelled',
+    label: 'İPTAL EDİLDİ',
+    badgeBg: 'bg-rose-950/70',
+    badgeText: 'text-rose-400',
+    badgeBorder: 'border-rose-800/60',
+    emoji: '🔴',
+    nextStatus: null,
+    nextActionLabel: null,
+    nextActionColor: null,
+  },
+};
+
+
 export type LedgerType = 'BORÇ' | 'ÖDEME' | 'İADE' | 'DÜZELTME';
 
 export type SupplierLedgerMovementType = 'PURCHASE' | 'PAYMENT' | 'OFFSET' | 'ADJUSTMENT' | 'RETURN';
@@ -110,6 +183,7 @@ export interface Sale {
   term_days: number;
   due_date: string | null;
   status: 'paid' | 'pending' | 'partially_paid' | 'cancelled';
+  order_status?: OrderStatus;
   paid_amount: number;
   remaining_debt: number;
   notes: string | null;

@@ -1,9 +1,15 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { formatCurrency, formatNumber, getISOYearMonth } from '@/utils/formatters';
-import { DashboardStats, Product } from '@/types/database.types';
+import { formatCurrency, formatNumber, formatDateTime } from '@/utils/formatters';
+import { DashboardStats, Product, Sale, OrderStatus, ORDER_STATUS_MAP } from '@/types/database.types';
+import { useToast } from '@/context/ToastContext';
+import { parseErrorMessage } from '@/utils/errors';
 import { LayoutContextType } from '@/components/layout/Layout';
+import { BusinessAssistantWidget } from '@/components/dashboard/BusinessAssistantWidget';
+import { SaleDetailModal } from '@/components/modals/SaleDetailModal';
+import { ConfirmDeliveryModal } from '@/components/modals/ConfirmDeliveryModal';
+import { CancelSaleModal } from '@/components/modals/CancelSaleModal';
 import {
   TrendingUp,
   Receipt,
@@ -22,8 +28,12 @@ import {
   Loader2,
   RefreshCw,
   Truck,
+  ArrowRight,
+  Clock,
+  CheckCircle2,
+  Ban,
+  Eye,
 } from 'lucide-react';
-import { BusinessAssistantWidget } from '@/components/dashboard/BusinessAssistantWidget';
 import {
   BarChart,
   Bar,
@@ -39,6 +49,7 @@ import {
 export const Dashboard: React.FC = () => {
   const { openNewSaleModal, openPaymentModal, openStockEntryModal } =
     useOutletContext<LayoutContextType>();
+  const { showSuccess, showError } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats>({
@@ -70,6 +81,29 @@ export const Dashboard: React.FC = () => {
   const [recentSales, setRecentSales] = useState<any[]>([]);
   const [salesTrend, setSalesTrend] = useState<any[]>([]);
 
+  // Today's Operational Orders & Counts (Requirements 3, 5, 19)
+  const [todayOrders, setTodayOrders] = useState<Sale[]>([]);
+  const [todayOrderCounts, setTodayOrderCounts] = useState({
+    total: 0,
+    received: 0,
+    preparing: 0,
+    prepared: 0,
+    delivered: 0,
+    cancelled: 0,
+  });
+
+  // Modals state for Dashboard direct interaction
+  const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+
+  const [deliverySale, setDeliverySale] = useState<Sale | null>(null);
+  const [deliveryModalOpen, setDeliveryModalOpen] = useState(false);
+
+  const [cancelSale, setCancelSale] = useState<Sale | null>(null);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     try {
@@ -93,19 +127,38 @@ export const Dashboard: React.FC = () => {
       const mSales = monthlySalesData?.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0) || 0;
       const mProfit = monthlySalesData?.reduce((acc, curr) => acc + Number(curr.total_profit || 0), 0) || 0;
 
-      // 2. Today's Sales & Profit
-      const { data: todaySalesData } = await supabase
+      // 2. Today's Full Sales (for Operational Summary & Today's Orders list)
+      const { data: todayFullSales } = await supabase
         .from('sales')
-        .select('total_amount, total_profit')
+        .select('*')
         .gte('created_at', startOfToday)
         .lte('created_at', endOfToday)
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
 
-      const tSales = todaySalesData?.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0) || 0;
-      const tProfit = todaySalesData?.reduce((acc, curr) => acc + Number(curr.total_profit || 0), 0) || 0;
-      const tCount = todaySalesData?.length || 0;
+      const mappedTodayOrders: Sale[] = (todayFullSales || []).map((s) => ({
+        ...s,
+        order_status: s.order_status || (s.status === 'cancelled' ? 'cancelled' : 'received'),
+      }));
 
-      // 3. Monthly Collections & Breakdown (Nakit, Banka, Tedarikçi Mahsubu)
+      setTodayOrders(mappedTodayOrders);
+
+      const tSales = mappedTodayOrders.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
+      const tProfit = mappedTodayOrders.reduce((acc, curr) => acc + Number(curr.total_profit || 0), 0);
+      const tCount = mappedTodayOrders.length;
+
+      const tCounts = {
+        total: mappedTodayOrders.length,
+        received: mappedTodayOrders.filter((s) => (s.order_status || 'received') === 'received' && s.status !== 'cancelled').length,
+        preparing: mappedTodayOrders.filter((s) => s.order_status === 'preparing').length,
+        prepared: mappedTodayOrders.filter((s) => s.order_status === 'prepared').length,
+        delivered: mappedTodayOrders.filter((s) => s.order_status === 'delivered').length,
+        cancelled: mappedTodayOrders.filter((s) => s.order_status === 'cancelled' || s.status === 'cancelled').length,
+      };
+
+      setTodayOrderCounts(tCounts);
+
+      // 3. Monthly Collections Breakdown
       const { data: monthlyCollectionsData } = await supabase
         .from('payments')
         .select('amount, payment_method')
@@ -141,55 +194,32 @@ export const Dashboard: React.FC = () => {
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
-      const customerLatestBalances: Record<string, number> = {};
-      customerLedgers?.forEach((item) => {
-        if (customerLatestBalances[item.customer_id] === undefined) {
-          customerLatestBalances[item.customer_id] = Number(item.balance || 0);
+      const customerDebtMap: Record<string, number> = {};
+      customerLedgers?.forEach((l) => {
+        if (customerDebtMap[l.customer_id] === undefined) {
+          customerDebtMap[l.customer_id] = Number(l.balance || 0);
         }
       });
-      const totDebt = Object.values(customerLatestBalances).reduce((acc, val) => acc + (val > 0 ? val : 0), 0);
 
-      // Supplier Debt & Monthly Supplier Metrics
+      const totalCustDebt = Object.values(customerDebtMap).reduce((acc, curr) => acc + Math.max(0, curr), 0);
+
       const { data: supplierLedgers } = await supabase
         .from('supplier_ledger')
-        .select('supplier_id, balance, credit, debit, movement_type, created_at')
+        .select('supplier_id, balance, created_at')
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
-      const supplierCredits: Record<string, number> = {};
-      const supplierDebits: Record<string, number> = {};
-      const supplierLatestBalances: Record<string, number> = {};
-      let mSupPurchase = 0;
-      let mSupOffset = 0;
-
-      supplierLedgers?.forEach((item) => {
-        if (supplierLatestBalances[item.supplier_id] === undefined) {
-          supplierLatestBalances[item.supplier_id] = Number(item.balance || 0);
-        }
-        if (item.movement_type === 'PURCHASE' || item.movement_type === 'ADJUSTMENT') {
-          supplierCredits[item.supplier_id] = (supplierCredits[item.supplier_id] || 0) + Number(item.credit || 0);
-        } else {
-          supplierDebits[item.supplier_id] = (supplierDebits[item.supplier_id] || 0) + Number(item.debit || 0);
-        }
-
-        if (item.created_at >= firstDayOfMonth) {
-          if (item.movement_type === 'PURCHASE') mSupPurchase += Number(item.credit || 0);
-          else if (item.movement_type === 'OFFSET') mSupOffset += Number(item.debit || 0);
+      const supplierDebtMap: Record<string, number> = {};
+      supplierLedgers?.forEach((sl) => {
+        if (supplierDebtMap[sl.supplier_id] === undefined) {
+          supplierDebtMap[sl.supplier_id] = Number(sl.balance || 0);
         }
       });
 
-      // Fail-safe balance calculation for every supplier
-      const finalSupplierBalances: Record<string, number> = {};
-      Object.keys(supplierLatestBalances).forEach((supId) => {
-        const latBal = supplierLatestBalances[supId];
-        const calcBal = Math.max(0, (supplierCredits[supId] || 0) - (supplierDebits[supId] || 0));
-        finalSupplierBalances[supId] = latBal > 0 ? latBal : calcBal;
-      });
+      const totalSuppDebt = Object.values(supplierDebtMap).reduce((acc, curr) => acc + Math.max(0, curr), 0);
 
-      const totSupDebt = Object.values(finalSupplierBalances).reduce((acc, val) => acc + (val > 0 ? val : 0), 0);
-
-      // 6. Payment Schedules: Due this week & Overdue
-      const { data: schedules } = await supabase
+      // 6. Due This Week & Overdue
+      const { data: activeSchedules } = await supabase
         .from('payment_schedules')
         .select('remaining_amount, due_date, status')
         .in('status', ['pending', 'partially_paid', 'overdue'])
@@ -197,7 +227,8 @@ export const Dashboard: React.FC = () => {
 
       let dueWeek = 0;
       let overdue = 0;
-      schedules?.forEach((s) => {
+
+      activeSchedules?.forEach((s) => {
         const rem = Number(s.remaining_amount || 0);
         if (s.due_date < todayStr || s.status === 'overdue') {
           overdue += rem;
@@ -206,40 +237,44 @@ export const Dashboard: React.FC = () => {
         }
       });
 
-      // 7. Warehouse Products & Cost & Critical Stock
-      const { data: products } = await supabase
+      // 7. Warehouse & Stock Metrics
+      const { data: productsData } = await supabase
         .from('products')
-        .select('*')
-        .is('deleted_at', null)
-        .eq('active', true);
+        .select('id, product_name, current_stock, minimum_stock, purchase_price, unit')
+        .eq('active', true)
+        .is('deleted_at', null);
 
-      let totProdCount = 0;
-      let stockCost = 0;
-      const criticals: Product[] = [];
+      let totalProds = 0;
+      let totalStockCost = 0;
+      const criticalProds: Product[] = [];
 
-      products?.forEach((p) => {
+      productsData?.forEach((p) => {
         const stock = Number(p.current_stock || 0);
         const minStock = Number(p.minimum_stock || 0);
-        const cost = Number(p.purchase_price || 0);
+        const price = Number(p.purchase_price || 0);
 
-        totProdCount += stock;
-        stockCost += stock * cost;
+        totalProds += stock;
+        totalStockCost += stock * price;
 
-        if (stock < minStock) {
-          criticals.push(p as Product);
+        if (stock <= minStock) {
+          criticalProds.push(p as Product);
         }
       });
 
-      // 8. Profit Target for current month
-      const { year, month } = getISOYearMonth();
+      setCriticalProducts(criticalProds);
+
+      // 8. Profit Target
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+
       const { data: targetData } = await supabase
         .from('profit_targets')
         .select('target_profit')
-        .eq('year', year)
-        .eq('month', month)
+        .eq('year', currentYear)
+        .eq('month', currentMonth)
         .maybeSingle();
 
-      const pTarget = Number(targetData?.target_profit || 100000);
+      const pTarget = targetData ? Number(targetData.target_profit) : 100000;
       const remTarget = Math.max(0, pTarget - mProfit);
 
       setStats({
@@ -248,34 +283,33 @@ export const Dashboard: React.FC = () => {
         monthlyProfit: mProfit,
         profitTarget: pTarget,
         remainingProfitTarget: remTarget,
-        totalCustomerDebt: totDebt,
+        totalCustomerDebt: totalCustDebt,
         dueThisWeek: dueWeek,
         overduePayments: overdue,
-        warehouseTotalProducts: totProdCount,
-        warehouseStockCost: stockCost,
-        criticalStockCount: criticals.length,
+        warehouseTotalProducts: totalProds,
+        warehouseStockCost: totalStockCost,
+        criticalStockCount: criticalProds.length,
         todaySales: tSales,
         todayCollections: tCollections,
         todayProfit: tProfit,
         todaySaleCount: tCount,
-        totalSupplierDebt: totSupDebt,
-        monthlySupplierPurchase: mSupPurchase,
-        monthlySupplierOffset: mSupOffset,
+        totalSupplierDebt: totalSuppDebt,
+        monthlySupplierPurchase: 0,
+        monthlySupplierOffset: offsetColl,
         cashCollections: cashColl,
         bankCollections: bankColl,
         offsetCollections: offsetColl,
       });
 
-      setCriticalProducts(criticals.slice(0, 5));
-
-      // 9. Top Selling Products Analytics
-      const { data: items } = await supabase
+      // 9. Top Selling Products
+      const { data: monthlyItems } = await supabase
         .from('sale_items')
         .select('product_name, quantity, total_amount')
+        .gte('created_at', firstDayOfMonth)
         .is('deleted_at', null);
 
       const prodMap: Record<string, { name: string; qty: number; sales: number }> = {};
-      items?.forEach((it) => {
+      monthlyItems?.forEach((it) => {
         if (!prodMap[it.product_name]) {
           prodMap[it.product_name] = { name: it.product_name, qty: 0, sales: 0 };
         }
@@ -289,14 +323,14 @@ export const Dashboard: React.FC = () => {
       // 10. Recent Sales
       const { data: salesList } = await supabase
         .from('sales')
-        .select('id, sale_number, customer_name, total_amount, payment_type, status, created_at')
+        .select('id, sale_number, customer_name, total_amount, payment_type, status, order_status, created_at')
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(5);
 
       setRecentSales(salesList || []);
 
-      // 11. Sales Trend Chart Data (Last 7 Days - Revenue only)
+      // 11. Sales Trend Chart Data (Last 7 Days)
       const last7Days = Array.from({ length: 7 }, (_, i) => {
         const d = new Date();
         d.setDate(d.getDate() - (6 - i));
@@ -325,6 +359,52 @@ export const Dashboard: React.FC = () => {
     return () => window.removeEventListener('refresh-data', handleRefresh);
   }, [fetchDashboardData]);
 
+  // Advance order status directly from Dashboard
+  const handleAdvanceStatus = async (sale: Sale) => {
+    const currentStatus: OrderStatus = (sale.order_status as OrderStatus) || (sale.status === 'cancelled' ? 'cancelled' : 'received');
+    const conf = ORDER_STATUS_MAP[currentStatus];
+    if (!conf || !conf.nextStatus) return;
+
+    if (conf.nextStatus === 'delivered') {
+      setDeliverySale(sale);
+      setDeliveryModalOpen(true);
+      return;
+    }
+
+    const nextSt = conf.nextStatus;
+    setUpdatingStatusId(sale.id);
+
+    try {
+      const { error } = await supabase
+        .from('sales')
+        .update({ order_status: nextSt })
+        .eq('id', sale.id);
+
+      if (error) throw error;
+
+      await supabase.from('audit_logs').insert({
+        action: 'ORDER_STATUS_CHANGED',
+        entity_type: 'sales',
+        entity_id: sale.id,
+        details: {
+          order_id: sale.id,
+          sale_number: sale.sale_number,
+          customer_name: sale.customer_name,
+          old_status: currentStatus,
+          new_status: nextSt,
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      showSuccess(`Sipariş #${sale.sale_number} durumu: ${ORDER_STATUS_MAP[nextSt].label}`);
+      fetchDashboardData();
+    } catch (err) {
+      showError(parseErrorMessage(err));
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400">
@@ -337,11 +417,11 @@ export const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6 pb-8">
       {/* Top Banner & Refresh */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-4 sm:p-6 rounded-2xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-4 sm:p-6 rounded-2xl shadow-lg">
         <div>
           <h2 className="text-xl font-bold text-white tracking-tight">Genel Bakış & Ticari Performans</h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Satış cirosu, tahsilatlar, müşteri ve tedarikçi borç durumlarının anlık özeti.
+            Satış cirosu, operasyonel sipariş takibi, tahsilatlar, borç ve depo durumlarının anlık özeti.
           </p>
         </div>
         <button
@@ -411,6 +491,68 @@ export const Dashboard: React.FC = () => {
         </Link>
       </div>
 
+      {/* BUGÜNÜN OPERASYON ÖZETİ WIDGET (REQUIREMENT 5 & 19) */}
+      <div className="bg-slate-900 border border-brand-500/30 p-4 sm:p-5 rounded-2xl shadow-xl space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="p-1 rounded bg-brand-500/20 text-brand-400">
+              <Truck className="w-4 h-4" />
+            </span>
+            <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-wider">BUGÜN OPERASYON ÖZETİ</h3>
+            <span className="text-xs font-mono font-bold text-brand-300 bg-brand-950 px-2 py-0.5 rounded-full border border-brand-800">
+              {todayOrderCounts.total} Sipariş
+            </span>
+          </div>
+          <Link to="/sales" className="text-xs font-bold text-brand-400 hover:underline flex items-center gap-1">
+            <span>Tüm Sipariş Ekranı</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        {/* 5 Quick Status Counters */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 font-mono text-xs">
+          <Link to="/sales" className="bg-slate-950/80 p-3 rounded-xl border border-amber-900/40 hover:border-amber-500 transition-all">
+            <span className="text-[10px] font-sans font-bold text-amber-300/80 block uppercase">Bekleyen (Alındı)</span>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-xl font-black text-amber-300">{todayOrderCounts.received}</span>
+              <span className="text-base">🟡</span>
+            </div>
+          </Link>
+
+          <Link to="/sales" className="bg-slate-950/80 p-3 rounded-xl border border-orange-900/40 hover:border-orange-500 transition-all">
+            <span className="text-[10px] font-sans font-bold text-orange-300/80 block uppercase">Hazırlanıyor</span>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-xl font-black text-orange-300">{todayOrderCounts.preparing}</span>
+              <span className="text-base">🟠</span>
+            </div>
+          </Link>
+
+          <Link to="/sales" className="bg-slate-950/80 p-3 rounded-xl border border-emerald-900/40 hover:border-emerald-500 transition-all">
+            <span className="text-[10px] font-sans font-bold text-emerald-300/80 block uppercase">Hazırlandı</span>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-xl font-black text-emerald-300">{todayOrderCounts.prepared}</span>
+              <span className="text-base">🟢</span>
+            </div>
+          </Link>
+
+          <Link to="/sales" className="bg-slate-950/80 p-3 rounded-xl border border-sky-900/40 hover:border-sky-500 transition-all">
+            <span className="text-[10px] font-sans font-bold text-sky-300/80 block uppercase">Teslim Edildi</span>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-xl font-black text-sky-300">{todayOrderCounts.delivered}</span>
+              <span className="text-base">🔵</span>
+            </div>
+          </Link>
+
+          <Link to="/sales" className="bg-slate-950/80 p-3 rounded-xl border border-rose-900/40 hover:border-rose-500 transition-all col-span-2 sm:col-span-1">
+            <span className="text-[10px] font-sans font-bold text-rose-300/80 block uppercase">İptal Edildi</span>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-xl font-black text-rose-400">{todayOrderCounts.cancelled}</span>
+              <span className="text-base">🔴</span>
+            </div>
+          </Link>
+        </div>
+      </div>
+
       {/* 🤖 İŞLETME ASİSTANI WIDGET */}
       <BusinessAssistantWidget onRefreshParent={fetchDashboardData} />
 
@@ -418,13 +560,13 @@ export const Dashboard: React.FC = () => {
       <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4">
         <div className="flex items-center gap-2 mb-3">
           <Calendar className="w-4 h-4 text-brand-400" />
-          <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Bugünün Özet Operasyonu</h3>
+          <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Bugünün Özet Ciro & Finansmanı</h3>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800/60">
             <span className="text-xs text-slate-400 font-medium block">Bugünkü Satış</span>
             <span className="text-lg font-extrabold text-white">{formatCurrency(stats.todaySales)}</span>
-            <span className="text-[11px] text-slate-500 block mt-0.5">{stats.todaySaleCount} İşlem Yapıldı</span>
+            <span className="text-[11px] text-slate-500 block mt-0.5">{stats.todaySaleCount} Sipariş Alındı</span>
           </div>
 
           <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800/60">
@@ -448,101 +590,139 @@ export const Dashboard: React.FC = () => {
               {stats.criticalStockCount > 0 && <AlertTriangle className="w-4 h-4 text-amber-400 animate-pulse" />}
             </div>
             <Link to="/products" className="text-[11px] text-brand-400 hover:underline block mt-0.5">
-              İncele & Sipariş Ver &rarr;
+              İncele ve Sipariş Geç
             </Link>
           </div>
         </div>
       </div>
 
-      {/* MONTHLY MAIN METRICS GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Monthly Sales */}
+      {/* MAIN CARDS ROW */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Monthly Sales & Profit Card */}
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden shadow-lg">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Bu Ay Toplam Satış</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Bu Ayki Toplam Satış</span>
             <div className="p-2.5 bg-brand-500/10 text-brand-400 rounded-xl">
               <TrendingUp className="w-5 h-5" />
             </div>
           </div>
-          <p className="text-2xl font-extrabold text-white mt-3">{formatCurrency(stats.monthlySales)}</p>
-          <p className="text-xs text-slate-400 mt-1">Brüt Satış Cirosu</p>
-        </div>
-
-        {/* Monthly Collections */}
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden shadow-lg">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Bu Ay Toplam Tahsilat</span>
-            <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
-              <Receipt className="w-5 h-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold text-emerald-400 mt-3">{formatCurrency(stats.monthlyCollections)}</p>
-          <div className="text-[11px] text-slate-400 mt-1 space-y-0.5 font-medium">
-            <div className="flex justify-between">
-              <span>Nakit/Banka:</span>
-              <span className="text-slate-200 font-bold">{formatCurrency(stats.cashCollections + stats.bankCollections)}</span>
-            </div>
-            <div className="flex justify-between text-purple-400">
-              <span>Tedarikçi Mahsubu:</span>
-              <span className="font-bold">{formatCurrency(stats.offsetCollections)}</span>
-            </div>
+          <p className="text-3xl font-black text-white mt-3">{formatCurrency(stats.monthlySales)}</p>
+          <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+            <span className="text-slate-400">Tahmini Brüt Kâr:</span>
+            <span className="font-bold text-emerald-400">{formatCurrency(stats.monthlyProfit)}</span>
           </div>
         </div>
 
         {/* Total Customer Debt */}
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden shadow-lg">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Toplam Müşteri Alacağı</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Müşteri Cari Alacaklar</span>
             <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl">
-              <Users className="w-5 h-5" />
+              <DollarSign className="w-5 h-5" />
             </div>
           </div>
-          <p className="text-2xl font-extrabold text-amber-400 mt-3">{formatCurrency(stats.totalCustomerDebt)}</p>
-          <p className="text-xs text-slate-400 mt-1">Piyasadaki Toplam Müşteri Borcu</p>
-        </div>
-
-        {/* Total Supplier Debt */}
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden shadow-lg">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Toplam Tedarikçi Borcu</span>
-            <div className="p-2.5 bg-purple-500/10 text-purple-400 rounded-xl">
-              <Truck className="w-5 h-5" />
-            </div>
+          <p className="text-3xl font-black text-amber-400 mt-3">{formatCurrency(stats.totalCustomerDebt)}</p>
+          <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+            <span className="text-slate-400">Piyasadaki Borç Toplamı</span>
+            <Link to="/collections" className="font-bold text-brand-400 hover:underline">Tahsilat Planı</Link>
           </div>
-          <p className="text-2xl font-extrabold text-purple-400 mt-3">{formatCurrency(stats.totalSupplierDebt)}</p>
-          <p className="text-xs text-slate-400 mt-1">Tedarikçilere Ödenecek Borç</p>
         </div>
       </div>
 
-      {/* SECONDARY METRICS & FINANCING */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Due This Week */}
-        <div className="bg-slate-900/70 border border-slate-800 p-4 rounded-xl">
-          <span className="text-xs text-slate-400 font-medium block">Bu Hafta Tahsil Edilecek</span>
-          <span className="text-xl font-bold text-brand-400 block mt-1">{formatCurrency(stats.dueThisWeek)}</span>
-          <span className="text-[11px] text-slate-500 block mt-0.5">Gelecek 7 Gün İçindeki Vadeler</span>
+      {/* BUGÜNÜN SİPARİŞLERİ SECTION (REQUIREMENT 3 & 19) */}
+      <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="w-5 h-5 text-brand-400" />
+            <h3 className="font-black text-white text-base tracking-tight uppercase">BUGÜNÜN SİPARİŞLERİ</h3>
+            <span className="text-xs font-mono font-bold text-slate-400 bg-slate-950 px-2 py-0.5 rounded-md border border-slate-800">
+              {todayOrders.length} Adet
+            </span>
+          </div>
+          <Link to="/sales" className="text-xs text-brand-400 hover:underline font-bold">
+            Tüm Sipariş Listesi →
+          </Link>
         </div>
 
-        {/* Overdue Payments */}
-        <div className="bg-slate-900/70 border border-slate-800 p-4 rounded-xl">
-          <span className="text-xs text-slate-400 font-medium block">Geciken Ödemeler</span>
-          <span className="text-xl font-bold text-rose-400 block mt-1">{formatCurrency(stats.overduePayments)}</span>
-          <span className="text-[11px] text-slate-500 block mt-0.5">Vadesi Geçmiş Alacaklar</span>
-        </div>
+        {todayOrders.length === 0 ? (
+          <div className="p-8 text-center bg-slate-950 rounded-xl border border-slate-800 text-slate-500 text-xs">
+            Bugün henüz yeni sipariş alınmadı.
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {todayOrders.map((s) => {
+              const ordSt: OrderStatus = (s.order_status as OrderStatus) || (s.status === 'cancelled' ? 'cancelled' : 'received');
+              const conf = ORDER_STATUS_MAP[ordSt] || ORDER_STATUS_MAP.received;
+              const isCancelled = ordSt === 'cancelled' || s.status === 'cancelled';
 
-        {/* Monthly Supplier Offset */}
-        <div className="bg-slate-900/70 border border-slate-800 p-4 rounded-xl">
-          <span className="text-xs text-slate-400 font-medium block">Bu Ay Sanal POS Mahsubu</span>
-          <span className="text-xl font-bold text-purple-400 block mt-1">{formatCurrency(stats.offsetCollections)}</span>
-          <span className="text-[11px] text-slate-500 block mt-0.5">Tedarikçi Borcundan Düşülen</span>
-        </div>
+              return (
+                <div
+                  key={s.id}
+                  onClick={() => {
+                    setSelectedSaleId(s.id);
+                    setDetailModalOpen(true);
+                  }}
+                  className={`p-3.5 bg-slate-950 rounded-xl border ${conf.badgeBorder} flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer hover:bg-slate-950/80 transition-all ${
+                    isCancelled ? 'opacity-65' : ''
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-white text-sm font-mono">#{s.sale_number}</span>
+                      <span className="text-xs font-semibold text-slate-200">{s.customer_name}</span>
+                      <span className="text-[11px] font-mono text-slate-400">
+                        ({formatDateTime(s.created_at).split(' ')[1] || formatDateTime(s.created_at)})
+                      </span>
+                    </div>
 
-        {/* Stock Cost */}
-        <div className="bg-slate-900/70 border border-slate-800 p-4 rounded-xl">
-          <span className="text-xs text-slate-400 font-medium block">Depo Stok Maliyeti</span>
-          <span className="text-xl font-bold text-slate-200 block mt-1">{formatCurrency(stats.warehouseStockCost)}</span>
-          <span className="text-[11px] text-slate-500 block mt-0.5">{formatNumber(stats.warehouseTotalProducts)} Adet Toplam Ürün</span>
-        </div>
+                    <div className="flex items-center gap-2 text-xs font-mono">
+                      <span className="text-emerald-400 font-extrabold">{formatCurrency(s.total_amount)}</span>
+                      <span className="text-slate-600">•</span>
+                      <span className="text-slate-400">
+                        {s.payment_type === 'pesin' ? 'Peşin' : `${s.term_days || 30}G Vadeli`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between sm:justify-end gap-3" onClick={(e) => e.stopPropagation()}>
+                    <span className={`px-2.5 py-1 rounded-xl text-xs font-extrabold uppercase border ${conf.badgeBg} ${conf.badgeText} ${conf.badgeBorder}`}>
+                      {conf.emoji} {conf.label}
+                    </span>
+
+                    {!isCancelled && conf.nextStatus ? (
+                      <button
+                        type="button"
+                        onClick={() => handleAdvanceStatus(s)}
+                        disabled={updatingStatusId === s.id}
+                        className={`px-3 py-1.5 rounded-xl font-bold text-xs uppercase flex items-center gap-1.5 shadow-md active:scale-95 transition-all ${conf.nextActionColor}`}
+                      >
+                        {updatingStatusId === s.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <>
+                            <span>{conf.nextActionLabel}</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setSelectedSaleId(s.id);
+                          setDetailModalOpen(true);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-900"
+                        title="İncele"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* CHARTS & ANALYTICS ROW */}
@@ -610,75 +790,27 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* BOTTOM SECTION: RECENT SALES & CRITICAL STOCK */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Sales List */}
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-white text-base">Son Satışlar</h3>
-            <Link to="/sales" className="text-xs text-brand-400 hover:underline">Tüm Satışlar</Link>
-          </div>
-          <div className="space-y-2.5">
-            {recentSales.length === 0 ? (
-              <p className="text-xs text-slate-500 italic py-6 text-center">Kayıtlı satış bulunmuyor.</p>
-            ) : (
-              recentSales.map((s) => (
-                <div key={s.id} className="flex items-center justify-between p-3 bg-slate-950/70 rounded-xl border border-slate-800/60">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-white">{s.sale_number}</span>
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${s.payment_type === 'pesin' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800/50' : 'bg-amber-950 text-amber-300 border border-amber-800/50'}`}>
-                        {s.payment_type === 'pesin' ? 'Peşin' : 'Vadeli'}
-                      </span>
-                    </div>
-                    <span className="text-xs text-slate-400 block mt-0.5">{s.customer_name}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-extrabold text-white block">{formatCurrency(s.total_amount)}</span>
-                    <span className="text-[10px] text-slate-500">{new Date(s.created_at).toLocaleDateString('tr-TR')}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+      {/* Modals for Dashboard Interactions */}
+      <SaleDetailModal
+        isOpen={detailModalOpen}
+        onClose={() => setDetailModalOpen(false)}
+        saleId={selectedSaleId}
+        onRefreshParent={fetchDashboardData}
+      />
 
-        {/* Critical Stock List */}
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
-              <h3 className="font-bold text-white text-base">Kritik Stok Seviyesindeki Ürünler</h3>
-            </div>
-            <Link to="/products" className="text-xs text-brand-400 hover:underline">Tüm Ürünler</Link>
-          </div>
-          <div className="space-y-2.5">
-            {criticalProducts.length === 0 ? (
-              <p className="text-xs text-emerald-400 italic py-6 text-center font-medium">
-                Tüm ürünlerin stok seviyeleri yeterli durumda.
-              </p>
-            ) : (
-              criticalProducts.map((p) => (
-                <div key={p.id} className="flex items-center justify-between p-3 bg-slate-950/70 rounded-xl border border-amber-900/40">
-                  <div>
-                    <span className="text-xs font-bold text-white block">{p.product_name}</span>
-                    <span className="text-[11px] text-slate-400">Min. Stok: {formatNumber(p.minimum_stock)} {p.unit}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-black text-amber-400 block">{formatNumber(p.current_stock)} {p.unit}</span>
-                    <button
-                      onClick={() => openStockEntryModal(p.id)}
-                      className="text-[10px] text-brand-400 hover:underline font-semibold"
-                    >
-                      + Mal Girişi Yap
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
+      <ConfirmDeliveryModal
+        isOpen={deliveryModalOpen}
+        onClose={() => setDeliveryModalOpen(false)}
+        sale={deliverySale}
+        onSuccess={fetchDashboardData}
+      />
+
+      <CancelSaleModal
+        isOpen={cancelModalOpen}
+        onClose={() => setCancelModalOpen(false)}
+        sale={cancelSale}
+        onSuccess={fetchDashboardData}
+      />
     </div>
   );
 };
