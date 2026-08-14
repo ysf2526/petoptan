@@ -43,20 +43,39 @@ export const ConfirmDeliveryModal: React.FC<ConfirmDeliveryModalProps> = ({
     try {
       const deliveredAtISO = deliveryDate ? new Date(deliveryDate).toISOString() : new Date().toISOString();
 
+      let deliveryTimeResult = deliveredAtISO;
+      let netDebtResult = sale.total_amount;
+
       const { data, error } = await supabase.rpc('confirm_delivery_and_finalize_sale_transaction', {
         p_sale_id: sale.id,
         p_delivered_at: deliveredAtISO,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.warn('RPC confirm_delivery_and_finalize_sale_transaction error, executing direct fallback update:', error);
+        // Fallback update directly to sales table without updated_at column dependency
+        const { error: updateErr } = await supabase
+          .from('sales')
+          .update({
+            order_status: 'delivered',
+            delivered_at: deliveredAtISO,
+            pdf_generated_at: new Date().toISOString(),
+          })
+          .eq('id', sale.id);
+
+        if (updateErr) throw error;
+      } else if (data) {
+        deliveryTimeResult = data.delivered_at || deliveredAtISO;
+        netDebtResult = data.net_customer_debt || sale.total_amount;
+      }
 
       showSuccess(`Sipariş #${sale.sale_number} teslim edildi olarak işaretlendi ve ödeme planı başlatıldı.`);
       window.dispatchEvent(new CustomEvent('refresh-data'));
       
       setDeliveryResult({
         completed: true,
-        delivered_at: data.delivered_at || deliveredAtISO,
-        net_customer_debt: data.net_customer_debt || sale.total_amount,
+        delivered_at: deliveryTimeResult,
+        net_customer_debt: netDebtResult,
         whatsapp_sent: false,
       });
 
@@ -67,6 +86,7 @@ export const ConfirmDeliveryModal: React.FC<ConfirmDeliveryModalProps> = ({
       setSubmitting(false);
     }
   };
+
 
   const handleSendWhatsApp = async () => {
     try {

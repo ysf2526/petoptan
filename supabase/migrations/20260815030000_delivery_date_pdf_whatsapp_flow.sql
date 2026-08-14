@@ -2,8 +2,9 @@
 -- MIGRATION: 20260815030000_delivery_date_pdf_whatsapp_flow.sql
 -- PDF VE WHATSAPP BİLGİLENDİRMESİNİ SADECE "TESLİM EDİLDİ" AŞAMASINA BAĞLAMA VE TESLİM TARİHLİ ÖDEME PLANI
 
--- 1. SALES TABLOSUNA DÜZENLENMİŞ TESLİMAT VE WHATSAPP KOLONLARININ EKLENMESİ
+-- 1. SALES TABLOSUNA DÜZENLENMİŞ TESLİMAT, WHATSAPP VE UPDATED_AT KOLONLARININ EKLENMESİ
 ALTER TABLE public.sales
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(),
 ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ,
 ADD COLUMN IF NOT EXISTS pdf_generated_at TIMESTAMPTZ,
 ADD COLUMN IF NOT EXISTS whatsapp_sent_at TIMESTAMPTZ,
@@ -72,8 +73,7 @@ BEGIN
       delivered_at = v_delivery_time,
       pdf_generated_at = NOW(),
       due_date = v_due_date,
-      term_days = v_term_days,
-      updated_at = NOW()
+      term_days = v_term_days
   WHERE id = p_sale_id AND owner_id = v_owner_id;
 
   -- 2. Ödeme Planını TESLİM TARİHİNDEN BAŞLATARAK yeniden oluştur (Madde 3 & 5)
@@ -148,8 +148,7 @@ BEGIN
 
   UPDATE public.sales
   SET whatsapp_status = 'sent',
-      whatsapp_sent_at = NOW(),
-      updated_at = NOW()
+      whatsapp_sent_at = NOW()
   WHERE id = p_sale_id AND owner_id = v_owner_id;
 
   INSERT INTO public.audit_logs (
