@@ -84,6 +84,8 @@ export type PreOrderStatus =
   | 'demand_received' 
   | 'supply_pending' 
   | 'supplied' 
+  | 'stock_ready'
+  | 'converted'
   | 'preparing' 
   | 'prepared' 
   | 'delivered' 
@@ -123,6 +125,22 @@ export const PRE_ORDER_STATUS_MAP: Record<PreOrderStatus, PreOrderStatusConfig> 
     badgeBorder: 'border-indigo-700/60',
     emoji: '🏬',
   },
+  stock_ready: {
+    key: 'stock_ready',
+    label: 'ÜRÜNLERİN STOĞU OLUŞTU',
+    badgeBg: 'bg-emerald-950/70',
+    badgeText: 'text-emerald-300',
+    badgeBorder: 'border-emerald-700/60',
+    emoji: '🟢',
+  },
+  converted: {
+    key: 'converted',
+    label: 'GERÇEK SİPARİŞE DÖNÜŞTÜRÜLDÜ',
+    badgeBg: 'bg-sky-950/70',
+    badgeText: 'text-sky-300',
+    badgeBorder: 'border-sky-700/60',
+    emoji: '📦',
+  },
   preparing: {
     key: 'preparing',
     label: 'HAZIRLANIYOR',
@@ -156,6 +174,7 @@ export const PRE_ORDER_STATUS_MAP: Record<PreOrderStatus, PreOrderStatusConfig> 
     emoji: '🔴',
   },
 };
+
 
 
 export type LedgerType = 'BORÇ' | 'ÖDEME' | 'İADE' | 'DÜZELTME';
@@ -430,10 +449,13 @@ export interface PreOrder {
   status: PreOrderStatus;
   notes: string | null;
   estimated_total: number;
+  converted_sale_id?: string | null;
+  converted_sale_number?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
   pre_order_items?: PreOrderItem[];
+
   customers?: {
     business_name: string;
     phone: string | null;

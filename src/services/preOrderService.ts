@@ -318,8 +318,24 @@ export const preOrderService = {
   },
 
   /**
+   * Mark pre order stock ready ("Ürünlerin Stoğu Oluştu") after verifying warehouse stock
+   */
+  async markStockReady(preOrderId: string) {
+    const { data, error } = await supabase.rpc('mark_pre_order_stock_ready_transaction', {
+      p_pre_order_id: preOrderId,
+    });
+
+    if (error) {
+      console.error('RPC mark_pre_order_stock_ready_transaction error:', error);
+      throw error;
+    }
+    return data;
+  },
+
+  /**
    * Convert completed pre order to real sale (triggers inventory reduction, sale record, customer ledger debt)
    */
+
   async convertPreOrderToSale(
     preOrderId: string,
     paymentType: 'pesin' | 'vadeli' = 'vadeli',

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   X, 
   Clock, 
@@ -11,7 +12,10 @@ import {
   ShoppingCart, 
   Ban, 
   MessageSquare,
-  ChevronRight
+  ChevronRight,
+  Boxes,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   PreOrder, 
@@ -37,6 +41,7 @@ export const PreOrderDetailModal: React.FC<PreOrderDetailModalProps> = ({
   onClose,
   onRefresh,
 }) => {
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const [history, setHistory] = useState<PreOrderStatusHistory[]>([]);
   const [loading, setLoading] = useState(false);
@@ -64,6 +69,10 @@ export const PreOrderDetailModal: React.FC<PreOrderDetailModalProps> = ({
 
   if (!isOpen || !preOrder) return null;
 
+  const isConverted = preOrder.status === 'converted' || !!preOrder.converted_sale_id;
+  const isCancelled = preOrder.status === 'cancelled';
+  const isStockReady = preOrder.status === 'stock_ready';
+
   const currentStatusConfig = PRE_ORDER_STATUS_MAP[preOrder.status] || {
     label: preOrder.status,
     badgeBg: 'bg-slate-800',
@@ -81,6 +90,20 @@ export const PreOrderDetailModal: React.FC<PreOrderDetailModalProps> = ({
       fetchHistory();
     } catch (err: any) {
       showToast(err.message || 'Durum değiştirilirken hata oluştu.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkStockReady = async () => {
+    try {
+      setLoading(true);
+      const res = await preOrderService.markStockReady(preOrder.id);
+      showToast(res.message || 'Ürünlerin stoğu oluştu. Sipariş artık hazırlama aşamasına geçirilebilir.', 'success');
+      onRefresh();
+      fetchHistory();
+    } catch (err: any) {
+      showToast(err.message || 'Stok durumu güncellenirken hata oluştu.', 'error');
     } finally {
       setLoading(false);
     }
@@ -111,10 +134,15 @@ export const PreOrderDetailModal: React.FC<PreOrderDetailModalProps> = ({
         undefined,
         `Ön Sipariş Dönüşümü (${preOrder.order_number})`
       );
-      showToast(`Ön sipariş başarıyla gerçek satışa dönüştürüldü! Satış No: ${res.sale_result?.sale_number}`, 'success');
+      showToast(
+        `Ön sipariş gerçek siparişe dönüştürüldü! Sipariş No: #${res.sale_number} (Durum: Sipariş Alındı)`,
+        'success'
+      );
       setShowConvertConfirm(false);
       onRefresh();
       onClose();
+      // Navigate to sales page to see the newly received order
+      navigate('/sales');
     } catch (err: any) {
       showToast(err.message || 'Satışa dönüştürülürken bir hata oluştu.', 'error');
     } finally {
@@ -176,75 +204,127 @@ export const PreOrderDetailModal: React.FC<PreOrderDetailModalProps> = ({
         </div>
 
         <div className="p-4 sm:p-5 space-y-5 max-h-[75vh] overflow-y-auto custom-scrollbar">
-          {/* Action Bar & Quick Status Changer */}
-          {preOrder.status !== 'delivered' && preOrder.status !== 'cancelled' && (
-            <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold text-slate-300">Sipariş Durumu Değiştir</p>
-                <p className="text-[11px] text-slate-400">Tedarik ve hazırlık durumunu ilerletin</p>
+          {/* Action Bar & Step Buttons */}
+          {!isConverted && !isCancelled && (
+            <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-white uppercase tracking-wider">
+                    Ön Sipariş İş Akışı Adımları
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Depo stok durumuna göre siparişi aşamalı olarak hazırlayın
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={preOrder.status}
+                    onChange={(e) => handleStatusChange(e.target.value as PreOrderStatus)}
+                    disabled={loading}
+                    className="bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-1.5 outline-none font-semibold"
+                  >
+                    <option value="demand_received">📋 TALEP ALINDI</option>
+                    <option value="supply_pending">📦 TEDARİK BEKLİYOR</option>
+                    <option value="supplied">🏬 TEDARİK EDİLDİ</option>
+                    <option value="stock_ready">🟢 STOK OLUŞTU</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowCancelConfirm(true)}
+                    className="bg-rose-950/60 border border-rose-800/60 hover:bg-rose-900/60 text-rose-300 text-xs font-medium px-2.5 py-1.5 rounded-xl transition-colors flex items-center gap-1"
+                  >
+                    <Ban className="w-3.5 h-3.5" />
+                    <span>İptal Et</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                <select
-                  value={preOrder.status}
-                  onChange={(e) => handleStatusChange(e.target.value as PreOrderStatus)}
-                  disabled={loading}
-                  className="bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 outline-none font-semibold"
+              {/* Main Action Buttons Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* STEP 1: Mark Stock Ready Button */}
+                <button
+                  type="button"
+                  onClick={handleMarkStockReady}
+                  disabled={loading || isStockReady}
+                  className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-98 ${
+                    isStockReady
+                      ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300 opacity-80 cursor-default'
+                      : 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white shadow-lg shadow-emerald-500/20'
+                  }`}
                 >
-                  <option value="demand_received">📋 TALEP ALINDI</option>
-                  <option value="supply_pending">📦 TEDARİK BEKLİYOR</option>
-                  <option value="supplied">🏬 TEDARİK EDİLDİ</option>
-                  <option value="preparing">🟠 HAZIRLANIYOR</option>
-                  <option value="prepared">🟢 HAZIRLANDI</option>
-                </select>
+                  <Boxes className="w-4 h-4" />
+                  <span>
+                    {isStockReady ? '✅ Ürünlerin Stoğu Oluştu (Tamam)' : '🟢 Ürünlerin Stoğu Oluştu'}
+                  </span>
+                </button>
 
+                {/* STEP 2: Convert To Real Order / Prepare Sale Button */}
                 <button
                   type="button"
                   onClick={() => setShowConvertConfirm(true)}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
+                  disabled={loading}
+                  className="p-3 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-brand-500/20 transition-all active:scale-98"
                 >
-                  <ShoppingCart className="w-3.5 h-3.5" />
-                  <span>Satışa Dönüştür</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowCancelConfirm(true)}
-                  className="bg-rose-950/60 border border-rose-800/60 hover:bg-rose-900/60 text-rose-300 text-xs font-medium px-3 py-2 rounded-xl transition-colors flex items-center gap-1"
-                >
-                  <Ban className="w-3.5 h-3.5" />
-                  <span>İptal Et</span>
+                  <ShoppingCart className="w-4 h-4" />
+                  <span>📦 Siparişi Hazırla (Gerçek Siparişe Dönüştür)</span>
                 </button>
               </div>
             </div>
           )}
 
-          {/* Convertible Warning Notice */}
-          {preOrder.status === 'delivered' && (
-            <div className="bg-sky-950/40 border border-sky-800/40 rounded-xl p-3.5 text-xs text-sky-300 flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-sky-400 shrink-0" />
-              <span>Bu ön sipariş teslim edilerek gerçek satışa dönüştürülmüştür.</span>
+          {/* Converted Info Notice Banner (Madde 14 & 15) */}
+          {isConverted && (
+            <div className="bg-sky-950/60 border border-sky-800/80 rounded-2xl p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sky-300 font-extrabold text-xs sm:text-sm">
+                  <CheckCircle2 className="w-5 h-5 text-sky-400 shrink-0" />
+                  <span>
+                    Bu ön sipariş #{preOrder.converted_sale_number || 'kayıtlı'} numaralı gerçek siparişe dönüştürülmüştür.
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    onClose();
+                    navigate('/sales');
+                  }}
+                  className="bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 shadow-md"
+                >
+                  <span>Siparişlere Git</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-xs text-slate-300 pl-7">
+                Sipariş durumu varsayılan olarak <strong>🟡 Sipariş Alındı</strong> olarak kaydedilmiştir. Siparişler ekranından adım adım <i>Hazırlanıyor</i>, <i>Hazırlandı</i> ve <i>Teslim Edildi</i> aşamalarına geçirebilirsiniz.
+              </p>
             </div>
           )}
 
           {/* Convert to Sale Confirmation Overlay Form */}
           {showConvertConfirm && (
-            <div className="bg-emerald-950/40 border border-emerald-800/60 rounded-xl p-4 space-y-3 animate-fadeIn">
-              <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
-                <ShoppingCart className="w-4 h-4" />
-                <span>Ön Siparişi Gerçek Satışa Dönüştür</span>
+            <div className="bg-slate-950 border border-brand-500/40 rounded-2xl p-4 space-y-4 shadow-2xl animate-fadeIn">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <div className="flex items-center gap-2 text-brand-400 font-bold text-sm">
+                  <ShoppingCart className="w-4 h-4" />
+                  <span>Gerçek Siparişe Dönüştür & Siparişi Hazırla</span>
+                </div>
+                <span className="text-[10px] text-amber-400 font-semibold bg-amber-950/60 px-2 py-0.5 rounded">
+                  Status: 🟡 Sipariş Alındı olarak başlayacaktır
+                </span>
               </div>
-              <p className="text-xs text-slate-300">
-                Bu işlem ürünü stoktan düşecek, gerçek satış kaydı oluşturacak ve müşterinin cari hesabına borç yazacaktır.
+
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Bu işlem stok düşecek, Müşteri Carisine Borç yazacak ve siparişi <strong>Sipariş Alındı</strong> durumuna alacaktır. Otomatik teslim edildi yapılmaz.
               </p>
 
-              <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Ödeme Türü</label>
                   <select
                     value={paymentType}
                     onChange={(e) => setPaymentType(e.target.value as 'pesin' | 'vadeli')}
-                    className="w-full bg-slate-800 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 outline-none"
+                    className="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2.5 outline-none font-semibold"
                   >
                     <option value="vadeli">Vadeli Satış</option>
                     <option value="pesin">Peşin Satış</option>
@@ -258,17 +338,17 @@ export const PreOrderDetailModal: React.FC<PreOrderDetailModalProps> = ({
                       type="number"
                       value={termDays}
                       onChange={(e) => setTermDays(Number(e.target.value))}
-                      className="w-full bg-slate-800 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 outline-none font-bold"
+                      className="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2.5 outline-none font-bold"
                     />
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowConvertConfirm(false)}
-                  className="px-3 py-1.5 text-xs text-slate-400 hover:text-white"
+                  className="px-3.5 py-2 text-xs text-slate-400 hover:text-white"
                 >
                   Vazgeç
                 </button>
@@ -276,9 +356,9 @@ export const PreOrderDetailModal: React.FC<PreOrderDetailModalProps> = ({
                   type="button"
                   onClick={handleConvertToSale}
                   disabled={loading}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors"
+                  className="bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-brand-500/25 flex items-center gap-1.5"
                 >
-                  {loading ? 'Dönüştürülüyor...' : 'Onayla ve Satışı Tamamla'}
+                  {loading ? 'İşleniyor...' : 'Siparişi Oluştur (Sipariş Alındı)'}
                 </button>
               </div>
             </div>
@@ -353,7 +433,7 @@ export const PreOrderDetailModal: React.FC<PreOrderDetailModalProps> = ({
                   <tr>
                     <th className="p-3">Ürün Adı</th>
                     <th className="p-3 text-center">Talep Miktarı</th>
-                    <th className="p-3 text-center">Karşılanan</th>
+                    <th className="p-3 text-center">Mevcut Stok</th>
                     <th className="p-3 text-center">Tahmini Fiyat</th>
                     <th className="p-3 text-right">Durum</th>
                   </tr>
@@ -361,6 +441,9 @@ export const PreOrderDetailModal: React.FC<PreOrderDetailModalProps> = ({
                 <tbody className="divide-y divide-slate-800">
                   {(preOrder.pre_order_items || []).map((item) => {
                     const itemConfig = PRE_ORDER_STATUS_MAP[item.status] || currentStatusConfig;
+                    const stock = item.products?.current_stock ?? 0;
+                    const hasEnough = stock >= item.demanded_quantity;
+
                     return (
                       <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
                         <td className="p-3 font-medium text-white">
@@ -370,8 +453,16 @@ export const PreOrderDetailModal: React.FC<PreOrderDetailModalProps> = ({
                         <td className="p-3 text-center font-bold text-amber-300">
                           {item.demanded_quantity} {item.unit}
                         </td>
-                        <td className="p-3 text-center font-bold text-emerald-400">
-                          {item.fulfilled_quantity} {item.unit}
+                        <td className="p-3 text-center font-bold">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[11px] ${
+                              hasEnough
+                                ? 'bg-emerald-950 text-emerald-300 border border-emerald-800/40'
+                                : 'bg-rose-950 text-rose-300 border border-rose-800/40'
+                            }`}
+                          >
+                            {stock} {item.unit}
+                          </span>
                         </td>
                         <td className="p-3 text-center text-slate-300">
                           {item.estimated_sale_price > 0

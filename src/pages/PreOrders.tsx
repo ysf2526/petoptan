@@ -51,14 +51,14 @@ export const PreOrders: React.FC = () => {
 
   const statusTabs: { key: PreOrderStatus | 'ALL'; label: string }[] = [
     { key: 'ALL', label: 'Tümü' },
-    { key: 'demand_received', label: 'Talep Alındı' },
-    { key: 'supply_pending', label: 'Tedarik Bekliyor' },
-    { key: 'supplied', label: 'Tedarik Edildi' },
-    { key: 'preparing', label: 'Hazırlanıyor' },
-    { key: 'prepared', label: 'Hazırlandı' },
-    { key: 'delivered', label: 'Teslim Edildi' },
-    { key: 'cancelled', label: 'İptal Edildi' },
+    { key: 'demand_received', label: '📋 Talep Alındı' },
+    { key: 'supply_pending', label: '📦 Tedarik Bekliyor' },
+    { key: 'supplied', label: '🏬 Tedarik Edildi' },
+    { key: 'stock_ready', label: '🟢 Stoğu Oluştu' },
+    { key: 'converted', label: '📦 Gerçek Siparişe Dönüştü' },
+    { key: 'cancelled', label: '🔴 İptal Edildi' },
   ];
+
 
   return (
     <div className="space-y-6 pb-12 animate-fadeIn">
