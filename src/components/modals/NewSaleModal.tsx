@@ -331,39 +331,12 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
       }
 
       if (data && data.success) {
-        showSuccess(`Satış başarıyla tamamlandı! (#${data.sale_number})`);
+        showSuccess(
+          `Sipariş / Hızlı Satış kaydedildi (#${data.sale_number}). Durum: 🟡 Teslim Bekliyor. Ürün müşteriye teslim edildiğinde [✅ TESLİM EDİLDİ] butonuna basarak cari borcu ve ödeme planını başlatabilirsiniz.`
+        );
         setBelowCostModalOpen(false);
-
-        // Fetch customer info and balance to populate Post Sale Success Summary Modal
-        const selectedCust = customers.find((c) => c.id === selectedCustomerId);
-        const { data: lData } = await supabase
-          .from('customer_ledger')
-          .select('balance')
-          .eq('customer_id', selectedCustomerId)
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        const currentTotalDebt = lData?.[0]?.balance ? Number(lData[0].balance) : totals.grandTotal;
-        const prevBal = Math.max(0, currentTotalDebt - totals.grandTotal);
-        const target = selectedCust?.weekly_payment_target && Number(selectedCust.weekly_payment_target) > 0
-          ? Number(selectedCust.weekly_payment_target)
-          : Math.ceil(currentTotalDebt / 4);
-
-        const weeks = Math.ceil(currentTotalDebt / (target || 1));
-
-        setPostSaleData({
-          saleId: data.sale_id,
-          saleNumber: data.sale_number,
-          currentSaleTotal: totals.grandTotal,
-          prevBalance: prevBal,
-          newTotalDebt: currentTotalDebt,
-          weeklyTarget: target,
-          estimatedWeeks: weeks,
-          customerId: selectedCustomerId,
-          customerName: selectedCust?.business_name || '',
-        });
-
+        window.dispatchEvent(new CustomEvent('refresh-data'));
+        onClose();
         if (onSuccess) onSuccess(data.sale_id);
       } else {
         showError('Satış kaydı oluşturulamadı.');
@@ -374,6 +347,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
       setLoading(false);
     }
   };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
