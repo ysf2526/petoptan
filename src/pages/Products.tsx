@@ -4,10 +4,11 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { parseErrorMessage } from '@/utils/errors';
 import { formatCurrency, formatNumber, calculateUnitProfit, calculateProfitMargin } from '@/utils/formatters';
-import { Product } from '@/types/database.types';
+import { Product, ProductType } from '@/types/database.types';
 import { LayoutContextType } from '@/components/layout/Layout';
 import { ProductModal } from '@/components/modals/ProductModal';
-import { StockEntryModal } from '@/components/modals/StockEntryModal';
+import { NewProductTypeModal } from '@/components/modals/NewProductTypeModal';
+import { ProductDetailModal } from '@/components/modals/ProductDetailModal';
 import {
   Package,
   Search,
@@ -17,7 +18,9 @@ import {
   AlertTriangle,
   Boxes,
   Loader2,
-  Filter,
+  ClipboardList,
+  Eye,
+  ImageIcon,
 } from 'lucide-react';
 
 export const Products: React.FC = () => {
@@ -26,25 +29,55 @@ export const Products: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
+  const [openDemandMap, setOpenDemandMap] = useState<Record<string, number>>({});
+
+  // Filter States
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<ProductType | 'ALL'>('ALL');
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [onlyCritical, setOnlyCritical] = useState<boolean>(false);
 
   // Modals state
+  const [typeModalOpen, setTypeModalOpen] = useState(false);
   const [productModalOpen, setProductModalOpen] = useState(false);
+  const [selectedProductType, setSelectedProductType] = useState<ProductType>('stock');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Detail View Modal state
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // 1. Fetch Products
+      const { data: prodData, error: prodErr } = await supabase
         .from('products')
         .select('*')
         .is('deleted_at', null)
         .order('product_name');
 
-      if (error) throw error;
-      setProducts(data || []);
+      if (prodErr) throw prodErr;
+
+      // 2. Fetch Open Pre-Order Demand
+      const { data: itemsData, error: itemsErr } = await supabase
+        .from('pre_order_items')
+        .select('product_id, demanded_quantity, fulfilled_quantity, status')
+        .in('status', ['demand_received', 'supply_pending', 'supplied', 'preparing']);
+
+      if (itemsErr) {
+        console.warn('Error fetching pre-order demand items:', itemsErr);
+      }
+
+      const demandMap: Record<string, number> = {};
+      (itemsData || []).forEach((item) => {
+        if (item.product_id) {
+          const remaining = Math.max(0, Number(item.demanded_quantity || 0) - Number(item.fulfilled_quantity || 0));
+          demandMap[item.product_id] = (demandMap[item.product_id] || 0) + remaining;
+        }
+      });
+
+      setOpenDemandMap(demandMap);
+      setProducts(prodData || []);
     } catch (err) {
       showError(parseErrorMessage(err));
     } finally {
@@ -76,6 +109,17 @@ export const Products: React.FC = () => {
     }
   };
 
+  const handleOpenNewProduct = () => {
+    setTypeModalOpen(true);
+  };
+
+  const handleSelectProductType = (type: ProductType) => {
+    setSelectedProductType(type);
+    setEditingProduct(null);
+    setTypeModalOpen(false);
+    setProductModalOpen(true);
+  };
+
   const categories = Array.from(new Set(products.map((p) => p.category).filter(Boolean)));
 
   const filteredProducts = products.filter((p) => {
@@ -86,10 +130,12 @@ export const Products: React.FC = () => {
       (p.brand && p.brand.toLowerCase().includes(query)) ||
       (p.barcode && p.barcode.toLowerCase().includes(query));
 
+    const pType = p.product_type || 'stock';
+    const matchesType = filterType === 'ALL' || pType === filterType;
     const matchesCategory = filterCategory === 'ALL' || p.category === filterCategory;
     const matchesCritical = !onlyCritical || p.current_stock < p.minimum_stock;
 
-    return matchesSearch && matchesCategory && matchesCritical;
+    return matchesSearch && matchesType && matchesCategory && matchesCritical;
   });
 
   return (
@@ -99,19 +145,67 @@ export const Products: React.FC = () => {
         <div>
           <h2 className="text-xl font-bold text-white tracking-tight">Ürün Kataloğu & Stok Kartları</h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Alış/satış fiyatlarını güncelleyin, birim kâr marjlarını görüntüleyin ve stok seviyelerini takip edin.
+            Stoklu ürünler ve ön sipariş taleplerini fotoğraflı ürün kartları ile yönetin.
           </p>
         </div>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={handleOpenNewProduct}
+            className="bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white font-extrabold px-4 py-2.5 rounded-xl shadow-lg shadow-brand-500/20 text-xs sm:text-sm flex items-center gap-2 transition-all active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Yeni Ürün Ekle</span>
+          </button>
+
+          <button
+            onClick={() => openStockEntryModal()}
+            className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-3.5 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 transition-all active:scale-95"
+          >
+            <Boxes className="w-4 h-4 text-indigo-400" />
+            <span className="hidden sm:inline">Depoya Mal Girişi Yap</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Product Type Filter Tabs */}
+      <div className="flex items-center gap-2 p-1.5 bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto custom-scrollbar">
         <button
-          onClick={() => openStockEntryModal()}
-          className="self-start sm:self-center bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 text-xs sm:text-sm flex items-center gap-2 transition-all active:scale-95"
+          onClick={() => setFilterType('ALL')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all shrink-0 ${
+            filterType === 'ALL'
+              ? 'bg-brand-600 text-white shadow-md'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
         >
-          <Boxes className="w-4 h-4" />
-          <span>Depoya Mal Girişi Yap</span>
+          <span>Tümü ({products.length})</span>
+        </button>
+
+        <button
+          onClick={() => setFilterType('stock')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all shrink-0 ${
+            filterType === 'stock'
+              ? 'bg-emerald-600 text-white shadow-md'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          <Package className="w-3.5 h-3.5" />
+          <span>📦 Stoktaki Ürünler ({products.filter((p) => (p.product_type || 'stock') === 'stock').length})</span>
+        </button>
+
+        <button
+          onClick={() => setFilterType('pre_order')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all shrink-0 ${
+            filterType === 'pre_order'
+              ? 'bg-amber-600 text-white shadow-md'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          <ClipboardList className="w-3.5 h-3.5" />
+          <span>📋 Ön Sipariş Ürünleri ({products.filter((p) => p.product_type === 'pre_order').length})</span>
         </button>
       </div>
 
-      {/* Search & Filter Bar */}
+      {/* Search & Secondary Filter Bar */}
       <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3 items-center">
         {/* Search Input */}
         <div className="relative sm:col-span-2">
@@ -121,7 +215,7 @@ export const Products: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Ürün adı, marka veya barkod ile arayın..."
-            className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl py-2 pl-10 pr-4 text-xs sm:text-sm text-slate-100 placeholder-slate-500 outline-none"
+            className="w-full bg-slate-950 border border-slate-700 focus:border-brand-500 rounded-xl py-2 pl-10 pr-4 text-xs sm:text-sm text-slate-100 placeholder-slate-500 outline-none"
           />
         </div>
 
@@ -130,7 +224,7 @@ export const Products: React.FC = () => {
           <select
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl p-2 text-xs text-slate-100 outline-none"
+            className="w-full bg-slate-950 border border-slate-700 focus:border-brand-500 rounded-xl p-2 text-xs text-slate-100 outline-none"
           >
             <option value="ALL">Tüm Kategoriler</option>
             {categories.map((c) => (
@@ -157,7 +251,7 @@ export const Products: React.FC = () => {
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
         {loading ? (
           <div className="p-12 text-center text-slate-400 flex flex-col items-center">
-            <Loader2 className="w-8 h-8 animate-spin text-amber-500 mb-2" />
+            <Loader2 className="w-8 h-8 animate-spin text-brand-500 mb-2" />
             <span>Ürün Kataloğu Yükleniyor...</span>
           </div>
         ) : filteredProducts.length === 0 ? (
@@ -169,29 +263,61 @@ export const Products: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-950 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
                 <tr>
-                  <th className="p-4">Ürün Bilgisi</th>
+                  <th className="p-4">Görsel & Ürün Bilgisi</th>
                   <th className="p-4">Barkod</th>
                   <th className="p-4 text-right">Alış Fiyatı</th>
                   <th className="p-4 text-right">Satış Fiyatı</th>
                   <th className="p-4 text-right">Birim Kâr</th>
-                  <th className="p-4 text-right">Kâr Oranı</th>
-                  <th className="p-4 text-center">Stok Durumu</th>
+                  <th className="p-4 text-center">Stok / Açık Talep</th>
+                  <th className="p-4 text-center">Katalog</th>
                   <th className="p-4 text-right">İşlemler</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/70 text-slate-200">
                 {filteredProducts.map((p) => {
+                  const pType = p.product_type || 'stock';
+                  const isPreOrder = pType === 'pre_order';
+                  const openDemand = openDemandMap[p.id] || 0;
                   const unitProfit = calculateUnitProfit(p.purchase_price, p.sale_price);
                   const margin = calculateProfitMargin(p.purchase_price, p.sale_price);
-                  const isCritical = p.current_stock < p.minimum_stock;
+                  const isCritical = p.current_stock < p.minimum_stock && !isPreOrder;
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
                       <td className="p-4">
-                        <span className="font-bold text-slate-100 block text-sm">{p.product_name}</span>
-                        <span className="text-[11px] text-slate-400">
-                          {p.brand || 'Markasız'} {p.category ? `• ${p.category}` : ''} ({p.unit})
-                        </span>
+                        <div className="flex items-center gap-3">
+                          {/* Image Thumbnail */}
+                          <div className="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 shrink-0 overflow-hidden flex items-center justify-center">
+                            {p.image_url ? (
+                              <img
+                                src={p.image_url}
+                                alt={p.product_name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <ImageIcon className="w-5 h-5 text-slate-600" />
+                            )}
+                          </div>
+
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="font-bold text-slate-100 text-sm hover:text-brand-400 cursor-pointer"
+                                onClick={() => setViewingProduct(p)}
+                              >
+                                {p.product_name}
+                              </span>
+                              {isPreOrder && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-950 text-amber-300 border border-amber-800/60">
+                                  🟠 ÖN SİPARİŞ
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-slate-400">
+                              {p.brand || 'Markasız'} {p.category ? `• ${p.category}` : ''} ({p.unit})
+                            </span>
+                          </div>
+                        </div>
                       </td>
 
                       <td className="p-4 font-mono text-slate-400">
@@ -199,23 +325,30 @@ export const Products: React.FC = () => {
                       </td>
 
                       <td className="p-4 text-right font-medium text-slate-300">
-                        {formatCurrency(p.purchase_price)}
+                        {p.purchase_price > 0 ? (
+                          formatCurrency(p.purchase_price)
+                        ) : (
+                          <span className="text-slate-500 italic">Belirlenmedi</span>
+                        )}
                       </td>
 
                       <td className="p-4 text-right font-bold text-white">
-                        {formatCurrency(p.sale_price)}
+                        {p.sale_price > 0 ? formatCurrency(p.sale_price) : '-'}
                       </td>
 
                       <td className="p-4 text-right font-bold text-emerald-400">
-                        {formatCurrency(unitProfit)}
-                      </td>
-
-                      <td className="p-4 text-right font-extrabold text-emerald-400">
-                        %{margin}
+                        {p.purchase_price > 0 && p.sale_price > 0 ? (
+                          <>
+                            {formatCurrency(unitProfit)}
+                            <span className="block text-[10px] text-slate-400 font-medium">%{margin}</span>
+                          </>
+                        ) : (
+                          '-'
+                        )}
                       </td>
 
                       <td className="p-4 text-center">
-                        <div className="inline-flex flex-col items-center">
+                        <div className="inline-flex flex-col items-center gap-1">
                           <span
                             className={`font-extrabold px-2.5 py-0.5 rounded-full text-xs ${
                               isCritical
@@ -223,14 +356,31 @@ export const Products: React.FC = () => {
                                 : 'bg-slate-800 text-slate-200'
                             }`}
                           >
-                            {formatNumber(p.current_stock)} {p.unit}
+                            Stok: {formatNumber(p.current_stock)} {p.unit}
                           </span>
+
+                          {openDemand > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-950/80 text-amber-300 border border-amber-800/60">
+                              Açık Talep: {formatNumber(openDemand)} {p.unit}
+                            </span>
+                          )}
+
                           {isCritical && (
-                            <span className="text-[10px] text-amber-400 font-bold mt-0.5 flex items-center gap-1">
-                              <AlertTriangle className="w-3 h-3" /> Minimum: {p.minimum_stock}
+                            <span className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3" /> Min: {p.minimum_stock}
                             </span>
                           )}
                         </div>
+                      </td>
+
+                      <td className="p-4 text-center">
+                        {p.show_in_catalog !== false ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded">
+                            <Eye className="w-3 h-3" /> Yayında
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-500">Gizli</span>
+                        )}
                       </td>
 
                       <td className="p-4 text-right">
@@ -246,6 +396,7 @@ export const Products: React.FC = () => {
                           <button
                             onClick={() => {
                               setEditingProduct(p);
+                              setSelectedProductType(p.product_type || 'stock');
                               setProductModalOpen(true);
                             }}
                             title="Düzenle"
@@ -272,13 +423,31 @@ export const Products: React.FC = () => {
         )}
       </div>
 
-      {/* Product Modal */}
+      {/* Type Selection Modal */}
+      <NewProductTypeModal
+        isOpen={typeModalOpen}
+        onClose={() => setTypeModalOpen(false)}
+        onSelectType={handleSelectProductType}
+      />
+
+      {/* Create / Edit Product Modal */}
       <ProductModal
         isOpen={productModalOpen}
         onClose={() => setProductModalOpen(false)}
         productToEdit={editingProduct}
+        initialProductType={selectedProductType}
         onSuccess={fetchProducts}
       />
+
+      {/* Product Detail Modal */}
+      {viewingProduct && (
+        <ProductDetailModal
+          isOpen={!!viewingProduct}
+          onClose={() => setViewingProduct(null)}
+          product={viewingProduct}
+          openDemandQty={openDemandMap[viewingProduct.id] || 0}
+        />
+      )}
     </div>
   );
 };

@@ -316,15 +316,31 @@ export const NewPreOrderModal: React.FC<NewPreOrderModalProps> = ({
                       <div
                         key={p.id}
                         onClick={() => handleAddProduct(p)}
-                        className="p-3 hover:bg-slate-700/60 cursor-pointer flex items-center justify-between transition-colors text-xs"
+                        className="p-2.5 hover:bg-slate-700/60 cursor-pointer flex items-center justify-between transition-colors text-xs gap-2"
                       >
-                        <div>
-                          <p className="font-semibold text-white">{p.product_name}</p>
-                          <p className="text-[11px] text-slate-400">
-                            {p.brand || 'Markasız'} • Mevcut Stok: {p.current_stock} {p.unit}
-                          </p>
+                        <div className="flex items-center gap-2.5 overflow-hidden">
+                          <div className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-700 shrink-0 overflow-hidden flex items-center justify-center">
+                            {p.image_url ? (
+                              <img src={p.image_url} alt={p.product_name} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-[10px] text-slate-500 font-bold">P</span>
+                            )}
+                          </div>
+                          <div className="truncate">
+                            <div className="flex items-center gap-1.5 truncate">
+                              <p className="font-bold text-white truncate">{p.product_name}</p>
+                              {p.product_type === 'pre_order' && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-amber-950 text-amber-300 border border-amber-800/60 shrink-0">
+                                  ÖN SİPARİŞ
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 truncate">
+                              {p.brand || 'Markasız'} • Stok: {p.current_stock} {p.unit}
+                            </p>
+                          </div>
                         </div>
-                        <span className="bg-brand-500/20 text-brand-300 font-semibold px-2 py-1 rounded-md text-[11px]">
+                        <span className="bg-brand-600 hover:bg-brand-500 text-white font-bold px-2.5 py-1 rounded-lg text-[11px] shrink-0">
                           + Ekle
                         </span>
                       </div>
@@ -332,6 +348,7 @@ export const NewPreOrderModal: React.FC<NewPreOrderModalProps> = ({
                   )}
                 </div>
               )}
+
             </div>
 
             {/* 3. Eklenen Ürünler Listesi */}

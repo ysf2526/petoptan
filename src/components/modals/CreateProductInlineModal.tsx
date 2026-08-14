@@ -94,6 +94,7 @@ export const CreateProductInlineModal: React.FC<CreateProductInlineModalProps> =
         .from('products')
         .insert({
           owner_id: userId,
+          product_type: 'stock',
           product_name: name,
           barcode: cleanBarcode || null,
           brand: brand.trim() || null,
@@ -103,8 +104,10 @@ export const CreateProductInlineModal: React.FC<CreateProductInlineModalProps> =
           sale_price: sPrice,
           current_stock: 0, // Stock will be added in stock intake batch
           minimum_stock: Number(minimumStock) || 5,
+          show_in_catalog: true,
           active: true,
         })
+
         .select('*')
         .single();
 

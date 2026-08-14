@@ -207,6 +207,8 @@ export interface SupplierLedger {
   };
 }
 
+export type ProductType = 'stock' | 'pre_order';
+
 export interface Product {
   id: string;
   owner_id: string;
@@ -221,11 +223,17 @@ export interface Product {
   minimum_stock: number;
   supplier_id: string | null;
   supplier: string | null;
+  product_type?: ProductType;
+  image_url?: string | null;
+  description?: string | null;
+  show_in_catalog?: boolean;
+  open_demand_qty?: number;
   active: boolean;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
 }
+
 
 export interface Customer {
   id: string;

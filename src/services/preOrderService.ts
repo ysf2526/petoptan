@@ -145,6 +145,7 @@ export const preOrderService = {
       .from('products')
       .insert({
         owner_id: user.user.id,
+        product_type: 'pre_order',
         product_name: productName,
         brand: brand || null,
         category: category || null,
@@ -154,10 +155,12 @@ export const preOrderService = {
         sale_price: 0,
         current_stock: 0,
         minimum_stock: 0,
+        show_in_catalog: true,
         active: true,
       })
       .select()
       .single();
+
 
     if (error) {
       console.error('Error creating unregistered demand product:', error);
