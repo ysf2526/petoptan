@@ -9,6 +9,7 @@ import { LayoutContextType } from '@/components/layout/Layout';
 import { SaleDetailModal } from '@/components/modals/SaleDetailModal';
 import { ConfirmDeliveryModal } from '@/components/modals/ConfirmDeliveryModal';
 import { CancelSaleModal } from '@/components/modals/CancelSaleModal';
+import { preOrderService } from '@/services/preOrderService';
 import {
   TrendingUp,
   Receipt,
@@ -32,6 +33,8 @@ import {
   CheckCircle2,
   Ban,
   Eye,
+  ClipboardList,
+  Building2,
 } from 'lucide-react';
 import {
   BarChart,
@@ -74,7 +77,13 @@ export const Dashboard: React.FC = () => {
     cashCollections: 0,
     bankCollections: 0,
     offsetCollections: 0,
+    openPreOrdersCount: 0,
+    totalDemandedProductsQty: 0,
+    supplyPendingCount: 0,
+    waitingPreparationCount: 0,
+    topShortageProductsCount: 0,
   });
+
 
   const [topSellingProducts, setTopSellingProducts] = useState<any[]>([]);
   const [criticalProducts, setCriticalProducts] = useState<Product[]>([]);
@@ -103,6 +112,24 @@ export const Dashboard: React.FC = () => {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+
+
+  // Pre-Orders & Supply Planning Dashboard State
+  const [preOrderStats, setPreOrderStats] = useState<{
+    openPreOrdersCount: number;
+    totalDemandedProductsQty: number;
+    supplyPendingCount: number;
+    waitingPreparationCount: number;
+    topShortageProducts: any[];
+    totalMissingProductsQty: number;
+  }>({
+    openPreOrdersCount: 0,
+    totalDemandedProductsQty: 0,
+    supplyPendingCount: 0,
+    waitingPreparationCount: 0,
+    topShortageProducts: [],
+    totalMissingProductsQty: 0,
+  });
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
@@ -325,7 +352,13 @@ export const Dashboard: React.FC = () => {
         cashCollections: cashColl,
         bankCollections: bankColl,
         offsetCollections: offsetColl,
+        openPreOrdersCount: 0,
+        totalDemandedProductsQty: 0,
+        supplyPendingCount: 0,
+        waitingPreparationCount: 0,
+        topShortageProductsCount: 0,
       });
+
 
       // 9. Top Selling Products
       const { data: monthlyItems } = await supabase
@@ -371,11 +404,20 @@ export const Dashboard: React.FC = () => {
       });
 
       setSalesTrend(trendData);
+
+      // 12. Pre-Order & Supply Planning Metrics
+      try {
+        const poStats = await preOrderService.getDashboardPreOrderStats();
+        setPreOrderStats(poStats);
+      } catch (poErr) {
+        console.error('Error fetching pre-order stats for dashboard:', poErr);
+      }
     } catch (err) {
       console.error('Dashboard yükleme hatası:', err);
     } finally {
       setLoading(false);
     }
+
   }, []);
 
   useEffect(() => {
@@ -560,8 +602,7 @@ export const Dashboard: React.FC = () => {
               <span className="text-base">🟢</span>
             </div>
           </Link>
-
-          <Link to="/sales" className="bg-slate-950/80 p-3 rounded-xl border border-sky-900/40 hover:border-sky-500 transition-all">
+        <Link to="/sales" className="bg-slate-950/80 p-3 rounded-xl border border-sky-900/40 hover:border-sky-500 transition-all">
             <span className="text-[10px] font-sans font-bold text-sky-300/80 block uppercase">Teslim Edildi</span>
             <div className="flex items-baseline justify-between mt-1">
               <span className="text-xl font-black text-sky-300">{todayOrderCounts.delivered}</span>
@@ -572,11 +613,102 @@ export const Dashboard: React.FC = () => {
           <Link to="/sales" className="bg-slate-950/80 p-3 rounded-xl border border-rose-900/40 hover:border-rose-500 transition-all col-span-2 sm:col-span-1">
             <span className="text-[10px] font-sans font-bold text-rose-300/80 block uppercase">İptal Edildi</span>
             <div className="flex items-baseline justify-between mt-1">
-              <span className="text-xl font-black text-rose-400">{todayOrderCounts.cancelled}</span>
+              <span className="text-xl font-black text-rose-300">{todayOrderCounts.cancelled}</span>
               <span className="text-base">🔴</span>
             </div>
           </Link>
         </div>
+      </div>
+
+      {/* ÖN SİPARİŞLER & TEDARİK İHTİYACI WIDGETS (Section 16 & 17) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Card 1: Ön Siparişler Özeti */}
+        <Link
+          to="/pre-orders"
+          className="bg-slate-900 border border-slate-800 hover:border-brand-500/50 p-5 rounded-2xl shadow-xl transition-all group block space-y-4"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 font-bold">
+                <ClipboardList className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-sm group-hover:text-brand-300 transition-colors">
+                  📋 ÖN SİPARİŞLER
+                </h3>
+                <p className="text-xs text-slate-400">Açık müşteri talepleri</p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-white transition-colors" />
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+            <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+              <span className="text-[11px] text-slate-400 block">Açık Sipariş</span>
+              <span className="text-lg font-black text-amber-400">{preOrderStats.openPreOrdersCount}</span>
+            </div>
+
+            <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+              <span className="text-[11px] text-slate-400 block">Talep Ürün</span>
+              <span className="text-lg font-black text-white">{preOrderStats.totalDemandedProductsQty} Adet</span>
+            </div>
+
+            <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+              <span className="text-[11px] text-slate-400 block">Tedarik Bekleyen</span>
+              <span className="text-lg font-black text-purple-400">{preOrderStats.supplyPendingCount}</span>
+            </div>
+
+            <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+              <span className="text-[11px] text-slate-400 block">Hazırlık Bekleyen</span>
+              <span className="text-lg font-black text-emerald-400">{preOrderStats.waitingPreparationCount}</span>
+            </div>
+          </div>
+        </Link>
+
+        {/* Card 2: Tedarik İhtiyacı Özeti */}
+        <Link
+          to="/supply-plan"
+          className="bg-slate-900 border border-slate-800 hover:border-purple-500/50 p-5 rounded-2xl shadow-xl transition-all group block space-y-4"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 font-bold">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-sm group-hover:text-purple-300 transition-colors">
+                  📦 TEDARİK İHTİYACI
+                </h3>
+                <p className="text-xs text-slate-400">Satın alınması gereken eksik ürünler</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-black text-rose-400 bg-rose-950 px-2.5 py-0.5 rounded-full border border-rose-800">
+                {preOrderStats.totalMissingProductsQty} Adet Eksik
+              </span>
+              <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-white transition-colors" />
+            </div>
+          </div>
+
+          <div className="bg-slate-950 rounded-xl p-3 border border-slate-800 text-xs">
+            {preOrderStats.topShortageProducts.length === 0 ? (
+              <div className="text-slate-500 text-center py-1">Tedarik edilecek eksik ürün bulunmuyor.</div>
+            ) : (
+              <div className="space-y-1.5">
+                {preOrderStats.topShortageProducts.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between">
+                    <span className="font-medium text-slate-200 truncate max-w-[200px]">
+                      {item.product_name}
+                    </span>
+                    <span className="font-bold text-rose-400">
+                      → {item.needed_quantity} {item.unit} Eksik
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Link>
       </div>
 
       {/* TODAY'S SNAPSHOT STRIP */}

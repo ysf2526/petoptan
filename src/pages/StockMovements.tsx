@@ -5,6 +5,7 @@ import { formatDateTime, formatCurrency, formatNumber } from '@/utils/formatters
 import { StockMovement, MovementType, Product } from '@/types/database.types';
 import { LayoutContextType } from '@/components/layout/Layout';
 import { ProductStockDetailModal } from '@/components/modals/ProductStockDetailModal';
+import { FulfillPreOrderModal } from '@/components/modals/FulfillPreOrderModal';
 import {
   Boxes,
   Search,
@@ -25,6 +26,7 @@ import {
   Ban,
   Tag,
   Barcode,
+  Layers,
 } from 'lucide-react';
 
 export const StockMovements: React.FC = () => {
@@ -57,6 +59,7 @@ export const StockMovements: React.FC = () => {
   // Product Stock Detail Modal State
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [isFulfillModalOpen, setIsFulfillModalOpen] = useState(false);
 
   // Sync tab with URL search params if changed from outside
   useEffect(() => {
@@ -295,13 +298,23 @@ export const StockMovements: React.FC = () => {
             </p>
           </div>
 
-          <button
-            onClick={() => openStockEntryModal()}
-            className="self-start sm:self-center bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 text-xs sm:text-sm flex items-center gap-2 transition-all active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Depoya Mal Girişi Yap</span>
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            <button
+              onClick={() => setIsFulfillModalOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 text-xs sm:text-sm flex items-center gap-2 transition-all active:scale-95"
+            >
+              <Layers className="w-4 h-4" />
+              <span>Ön Siparişleri Karşıla</span>
+            </button>
+
+            <button
+              onClick={() => openStockEntryModal()}
+              className="bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 text-xs sm:text-sm flex items-center gap-2 transition-all active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Depoya Mal Girişi Yap</span>
+            </button>
+          </div>
         </div>
 
         {/* Tab Selector */}
@@ -869,6 +882,17 @@ export const StockMovements: React.FC = () => {
         productId={selectedProductId}
         onOpenStockEntry={(prodId) => openStockEntryModal(prodId)}
       />
+
+      {/* Fulfill Pre-Orders Modal */}
+      <FulfillPreOrderModal
+        isOpen={isFulfillModalOpen}
+        onClose={() => setIsFulfillModalOpen(false)}
+        onSuccess={() => {
+          fetchProducts();
+          fetchMovements();
+        }}
+      />
     </div>
   );
 };
+

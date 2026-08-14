@@ -21,6 +21,8 @@ import { Reports } from '@/pages/Reports';
 import { AuditLogs } from '@/pages/AuditLogs';
 import { Settings } from '@/pages/Settings';
 import { Assistant } from '@/pages/Assistant';
+import { PreOrders } from '@/pages/PreOrders';
+import { SupplyPlan } from '@/pages/SupplyPlan';
 
 export const App: React.FC = () => {
   return (
@@ -35,6 +37,8 @@ export const App: React.FC = () => {
               <Route element={<Layout />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/assistant" element={<Assistant />} />
+                <Route path="/pre-orders" element={<PreOrders />} />
+                <Route path="/supply-plan" element={<SupplyPlan />} />
                 <Route path="/sales" element={<Sales />} />
                 <Route path="/products" element={<Products />} />
                 <Route path="/stock" element={<StockMovements />} />
@@ -49,6 +53,7 @@ export const App: React.FC = () => {
                 <Route path="/settings" element={<Settings />} />
               </Route>
             </Route>
+
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

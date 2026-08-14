@@ -220,6 +220,32 @@ Teşekkür ederiz.`;
 }
 
 /**
+ * Builds Turkish WhatsApp text message for Pre-Order Creation (Müşteri Ön Sipariş Bilgilendirmesi).
+ */
+export function buildPreOrderWhatsAppMessage(
+  customerName: string,
+  orderNumber: string,
+  items: Array<{ product_name: string; demanded_quantity: number; unit?: string }>,
+  notes?: string | null
+): string {
+  const itemsText = items
+    .map((i) => `• ${i.product_name}: ${i.demanded_quantity} ${i.unit || 'Adet'}`)
+    .join('\n');
+
+  return `Merhaba ${customerName},
+
+${orderNumber} numaralı ön siparişiniz / ürün talebiniz başarıyla alınmıştır.
+
+📋 Talep Edilen Ürünler:
+${itemsText}
+${notes ? `\n📌 Sipariş Notu: ${notes}\n` : ''}
+Ürünleriniz tedarik edilip hazırlandığında bilgilendirileceksiniz.
+
+Teşekkür ederiz.`;
+}
+
+
+/**
  * Opens WhatsApp Web / Deep Link in a new tab.
  */
 export function openWhatsAppWeb(phone: string, text: string): void {

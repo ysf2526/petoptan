@@ -17,6 +17,8 @@ import {
   PlusCircle,
   ShieldCheck,
   Bot,
+  ClipboardList,
+  PackageSearch,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -29,6 +31,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenNewSaleModal }) => {
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/assistant', label: '🤖 İşletme Asistanı', icon: Bot },
+    { to: '/pre-orders', label: '📋 Ön Siparişler', icon: ClipboardList },
+    { to: '/supply-plan', label: '📦 Tedarik Planı', icon: PackageSearch },
     { to: '/sales', label: 'Satışlar', icon: ShoppingCart },
     { to: '/products', label: 'Ürünler', icon: Package },
     { to: '/stock', label: 'Stok', icon: Boxes },
@@ -41,6 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenNewSaleModal }) => {
     { to: '/audit-logs', label: 'İşlem Geçmişi', icon: ShieldCheck },
     { to: '/settings', label: 'Ayarlar', icon: Settings },
   ];
+
 
   return (
     <aside className="hidden lg:flex flex-col w-64 bg-slate-900 border-r border-slate-800 text-slate-300 h-screen sticky top-0 shrink-0 z-30">

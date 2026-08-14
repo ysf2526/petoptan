@@ -80,6 +80,83 @@ export const ORDER_STATUS_MAP: Record<OrderStatus, OrderStatusConfig> = {
   },
 };
 
+export type PreOrderStatus = 
+  | 'demand_received' 
+  | 'supply_pending' 
+  | 'supplied' 
+  | 'preparing' 
+  | 'prepared' 
+  | 'delivered' 
+  | 'cancelled';
+
+export interface PreOrderStatusConfig {
+  key: PreOrderStatus;
+  label: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
+  emoji: string;
+}
+
+export const PRE_ORDER_STATUS_MAP: Record<PreOrderStatus, PreOrderStatusConfig> = {
+  demand_received: {
+    key: 'demand_received',
+    label: 'TALEP ALINDI',
+    badgeBg: 'bg-amber-950/70',
+    badgeText: 'text-amber-300',
+    badgeBorder: 'border-amber-700/60',
+    emoji: '📋',
+  },
+  supply_pending: {
+    key: 'supply_pending',
+    label: 'TEDARİK BEKLİYOR',
+    badgeBg: 'bg-purple-950/70',
+    badgeText: 'text-purple-300',
+    badgeBorder: 'border-purple-700/60',
+    emoji: '📦',
+  },
+  supplied: {
+    key: 'supplied',
+    label: 'TEDARİK EDİLDİ',
+    badgeBg: 'bg-indigo-950/70',
+    badgeText: 'text-indigo-300',
+    badgeBorder: 'border-indigo-700/60',
+    emoji: '🏬',
+  },
+  preparing: {
+    key: 'preparing',
+    label: 'HAZIRLANIYOR',
+    badgeBg: 'bg-orange-950/70',
+    badgeText: 'text-orange-300',
+    badgeBorder: 'border-orange-700/60',
+    emoji: '🟠',
+  },
+  prepared: {
+    key: 'prepared',
+    label: 'HAZIRLANDI',
+    badgeBg: 'bg-emerald-950/70',
+    badgeText: 'text-emerald-300',
+    badgeBorder: 'border-emerald-700/60',
+    emoji: '🟢',
+  },
+  delivered: {
+    key: 'delivered',
+    label: 'TESLİM EDİLDİ',
+    badgeBg: 'bg-sky-950/70',
+    badgeText: 'text-sky-300',
+    badgeBorder: 'border-sky-700/60',
+    emoji: '🔵',
+  },
+  cancelled: {
+    key: 'cancelled',
+    label: 'İPTAL EDİLDİ',
+    badgeBg: 'bg-rose-950/70',
+    badgeText: 'text-rose-400',
+    badgeBorder: 'border-rose-800/60',
+    emoji: '🔴',
+  },
+};
+
 
 export type LedgerType = 'BORÇ' | 'ÖDEME' | 'İADE' | 'DÜZELTME';
 
@@ -327,4 +404,111 @@ export interface DashboardStats {
   cashCollections: number;
   bankCollections: number;
   offsetCollections: number;
+
+  // Pre-Order & Supply Metrics
+  openPreOrdersCount: number;
+  totalDemandedProductsQty: number;
+  supplyPendingCount: number;
+  waitingPreparationCount: number;
+  topShortageProductsCount: number;
 }
+
+export interface PreOrder {
+  id: string;
+  owner_id: string;
+  order_number: string;
+  customer_id: string;
+  customer_name: string;
+  status: PreOrderStatus;
+  notes: string | null;
+  estimated_total: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  pre_order_items?: PreOrderItem[];
+  customers?: {
+    business_name: string;
+    phone: string | null;
+  };
+}
+
+export interface PreOrderItem {
+  id: string;
+  owner_id: string;
+  pre_order_id: string;
+  product_id: string | null;
+  product_name: string;
+  brand: string | null;
+  category: string | null;
+  unit: ProductUnit;
+  demanded_quantity: number;
+  fulfilled_quantity: number;
+  estimated_sale_price: number;
+  supplier_id: string | null;
+  supplier_name: string | null;
+  estimated_purchase_price: number;
+  status: PreOrderStatus;
+  created_at: string;
+  updated_at: string;
+  products?: {
+    current_stock: number;
+    purchase_price: number;
+    sale_price: number;
+  };
+}
+
+export interface PreOrderStatusHistory {
+  id: string;
+  owner_id: string;
+  pre_order_id: string;
+  old_status: string | null;
+  new_status: string;
+  note: string | null;
+  created_at: string;
+}
+
+export interface SupplyOrder {
+  id: string;
+  owner_id: string;
+  supply_order_number: string;
+  supplier_id: string;
+  supplier_name: string;
+  status: 'ordered' | 'partially_received' | 'received' | 'cancelled';
+  total_items: number;
+  total_estimated_cost: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  supply_order_items?: SupplyOrderItem[];
+}
+
+export interface SupplyOrderItem {
+  id: string;
+  owner_id: string;
+  supply_order_id: string;
+  product_id: string | null;
+  product_name: string;
+  quantity: number;
+  unit_cost: number;
+  pre_order_item_id: string | null;
+  created_at: string;
+}
+
+export interface SupplyDemandAnalysisItem {
+  product_id: string | null;
+  product_name: string;
+  brand: string | null;
+  category: string | null;
+  unit: ProductUnit;
+  total_demanded: number;
+  current_stock: number;
+  reserved_stock: number;
+  open_demand: number;
+  needed_quantity: number;
+  assigned_supplier_id?: string | null;
+  assigned_supplier_name?: string | null;
+  estimated_purchase_price?: number;
+  pre_order_items: PreOrderItem[];
+}
+

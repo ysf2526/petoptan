@@ -3,7 +3,8 @@ import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/formatters';
-import { Customer, CustomerLedger, Sale, PaymentSchedule } from '@/types/database.types';
+import { Customer, CustomerLedger, Sale, PaymentSchedule, PreOrder, PRE_ORDER_STATUS_MAP } from '@/types/database.types';
+import { preOrderService } from '@/services/preOrderService';
 import { LayoutContextType } from '@/components/layout/Layout';
 import {
   buildConsolidatedPaymentPlan,
@@ -28,6 +29,7 @@ import {
   Target,
   CheckCircle2,
   Save,
+  ClipboardList,
 } from 'lucide-react';
 
 interface PurchaseHistoryItem {
@@ -65,11 +67,17 @@ export const CustomerDetail: React.FC = () => {
   const [ledgerEntries, setLedgerEntries] = useState<CustomerLedger[]>([]);
   const [salesList, setSalesList] = useState<Sale[]>([]);
   const [paymentSchedules, setPaymentSchedules] = useState<PaymentSchedule[]>([]);
+  const [customerPreOrders, setCustomerPreOrders] = useState<PreOrder[]>([]);
 
   const fetchCustomerDetails = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     try {
+      // Fetch Customer Pre-Orders
+      preOrderService.getPreOrders('ALL').then((allPOs) => {
+        const custPOs = allPOs.filter((po) => po.customer_id === id);
+        setCustomerPreOrders(custPOs);
+      }).catch(err => console.error(err));
       // 1. Customer record
       const { data: cData } = await supabase.from('customers').select('*').eq('id', id).single();
       const cust = cData as Customer;
@@ -560,6 +568,69 @@ export const CustomerDetail: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* CUSTOMER PRE-ORDERS SECTION */}
+
+      <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="w-5 h-5 text-amber-400" />
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+              Müşterinin Ön Siparişleri ({customerPreOrders.length})
+            </h3>
+          </div>
+          <button
+            onClick={() => navigate('/pre-orders')}
+            className="text-xs text-brand-400 hover:underline font-semibold"
+          >
+            Tüm Ön Siparişlere Git →
+          </button>
+        </div>
+
+        <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950">
+          {customerPreOrders.length === 0 ? (
+            <p className="p-8 text-center text-xs text-slate-500">
+              Bu müşteriye ait aktif veya geçmiş ön sipariş kaydı bulunmuyor.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-900 text-slate-400 uppercase font-semibold border-b border-slate-800">
+                  <tr>
+                    <th className="p-3">Sipariş No</th>
+                    <th className="p-3">Tarih</th>
+                    <th className="p-3">Ürünler</th>
+                    <th className="p-3 text-center">Durum</th>
+                    <th className="p-3 text-right">Tahmini Tutar</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800 text-slate-200">
+                  {customerPreOrders.map((po) => {
+                    const cfg = PRE_ORDER_STATUS_MAP[po.status] || { label: po.status, badgeBg: 'bg-slate-800', badgeText: 'text-slate-300' };
+                    const itemNames = (po.pre_order_items || []).map(i => `${i.product_name} (${i.demanded_quantity} ${i.unit})`).join(', ');
+                    return (
+                      <tr key={po.id} className="hover:bg-slate-900/60 cursor-pointer" onClick={() => navigate('/pre-orders')}>
+                        <td className="p-3 font-bold text-white">{po.order_number}</td>
+                        <td className="p-3 text-slate-400">{formatDate(po.created_at)}</td>
+                        <td className="p-3 text-slate-300 truncate max-w-xs">{itemNames}</td>
+                        <td className="p-3 text-center">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${cfg.badgeBg} ${cfg.badgeText}`}>
+                            {cfg.label}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right font-bold text-amber-300">
+                          {po.estimated_total > 0 ? formatCurrency(po.estimated_total) : '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
+

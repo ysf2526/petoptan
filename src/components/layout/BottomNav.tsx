@@ -18,6 +18,8 @@ import {
   LogOut,
   X,
   Bot,
+  ClipboardList,
+  PackageSearch,
 } from 'lucide-react';
 
 export const BottomNav: React.FC = () => {
@@ -26,12 +28,14 @@ export const BottomNav: React.FC = () => {
 
   const mainNav = [
     { to: '/', label: 'Ana Sayfa', icon: LayoutDashboard },
+    { to: '/pre-orders', label: 'Ön Sipariş', icon: ClipboardList },
     { to: '/sales', label: 'Satış', icon: ShoppingCart },
     { to: '/customers', label: 'Müşteriler', icon: Users },
-    { to: '/ledger', label: 'Cari', icon: BookOpen },
   ];
 
   const moreNav = [
+    { to: '/pre-orders', label: '📋 Ön Siparişler', icon: ClipboardList },
+    { to: '/supply-plan', label: '📦 Tedarik Planı', icon: PackageSearch },
     { to: '/assistant', label: '🤖 İşletme Asistanı', icon: Bot },
     { to: '/products', label: 'Ürünler & Stok Kartları', icon: Package },
     { to: '/stock', label: 'Stok & Depo Girişi', icon: Boxes },
@@ -42,6 +46,7 @@ export const BottomNav: React.FC = () => {
     { to: '/audit-logs', label: 'İşlem Günlüğü', icon: ShieldCheck },
     { to: '/settings', label: 'Ayarlar', icon: Settings },
   ];
+
 
   return (
     <>
