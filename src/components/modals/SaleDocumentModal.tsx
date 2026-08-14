@@ -179,7 +179,12 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
     }
 
     try {
+      await supabase.rpc('mark_sale_whatsapp_sent_transaction', {
+        p_sale_id: sale.id,
+      });
+
       const messageText = buildSaleWhatsAppMessage(sale, items, schedules, netTotalDebt, previousBalance);
+
 
       await logWhatsAppShareAttempt('sales', sale.id, norm.normalized, {
         sale_number: sale.sale_number,

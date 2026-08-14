@@ -778,7 +778,9 @@ export const Sales: React.FC = () => {
         onClose={() => setDeliveryModalOpen(false)}
         sale={deliverySale}
         onSuccess={fetchSales}
+        onOpenDocument={(s) => openSaleDocumentModal(s.id)}
       />
+
 
       {/* Cancel Sale Modal (Requirement 9) */}
       <CancelSaleModal

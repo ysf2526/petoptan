@@ -131,6 +131,10 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
     }
 
     try {
+      await supabase.rpc('mark_sale_whatsapp_sent_transaction', {
+        p_sale_id: sale.id,
+      });
+
       const msg = buildSaleWhatsAppMessage(sale, items, schedules);
       await logWhatsAppShareAttempt('sales', sale.id, norm.normalized, {
         customer_name: sale.customer_name,
@@ -138,10 +142,13 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
       });
 
       openWhatsAppWeb(norm.normalized, msg);
+      showSuccess('WhatsApp mesajı açıldı ve gönderim durumu kaydedildi.');
+      setSale((prev) => (prev ? { ...prev, whatsapp_status: 'sent', whatsapp_sent_at: new Date().toISOString() } : null));
     } catch (err: any) {
       showError(err.message || 'WhatsApp gönderimi sırasında hata oluştu.');
     }
   };
+
 
   return (
     <>
@@ -198,24 +205,33 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => openSaleDocumentModal(sale.id)}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold flex items-center gap-1.5 transition-all"
-                >
-                  <FileText className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Belge PDF</span>
-                </button>
+                {sale.order_status === 'delivered' ? (
+                  <>
+                    <button
+                      onClick={() => openSaleDocumentModal(sale.id)}
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold flex items-center gap-1.5 transition-all"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Belge PDF</span>
+                    </button>
 
-                <button
-                  onClick={handleDirectWhatsApp}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center gap-1.5 transition-all"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>WhatsApp</span>
-                </button>
+                    <button
+                      onClick={handleDirectWhatsApp}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center gap-1.5 transition-all"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>{sale.whatsapp_status === 'sent' ? 'WhatsApp (Tekrar Gönder)' : 'WhatsApp'}</span>
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-[11px] text-slate-400 italic bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg">
+                    🔒 PDF / WhatsApp bilgilendirmesi SADECE "Teslim Edildi" anında aktiftir
+                  </span>
+                )}
               </div>
             </div>
           )}
+
 
           {/* Body */}
           {loading ? (

@@ -288,12 +288,17 @@ export interface Sale {
   due_date: string | null;
   status: 'paid' | 'pending' | 'partially_paid' | 'cancelled';
   order_status?: OrderStatus;
+  delivered_at?: string | null;
+  pdf_generated_at?: string | null;
+  whatsapp_sent_at?: string | null;
+  whatsapp_status?: 'not_sent' | 'sent';
   paid_amount: number;
   remaining_debt: number;
   notes: string | null;
   created_at: string;
   deleted_at: string | null;
 }
+
 
 export interface SaleItem {
   id: string;
