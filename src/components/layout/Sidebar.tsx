@@ -106,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenNewSaleModal }) => {
       <div className="p-4 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img
-            src="/petivox-logo.png"
+            src="/Petivx.jpg"
             alt="Petivox Logo"
             className="w-10 h-10 rounded-xl object-cover border border-emerald-800/80 shadow-md shrink-0"
           />

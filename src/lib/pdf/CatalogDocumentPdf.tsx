@@ -9,7 +9,6 @@ import {
   Font,
 } from '@react-pdf/renderer';
 import { Product, Profile } from '@/types/database.types';
-import { PETIVOX_LOGO_BASE64 } from '@/assets/petivoxLogoBase64';
 
 // 1. REGISTER ROBOTO TTF FONT WITH FULL TURKISH UNICODE (LATIN-EXT) SUPPORT
 Font.register({
@@ -365,8 +364,8 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
   const phone = profile?.phone || '0555 000 0000';
   const address = profile?.address || 'Toptancılar Sitesi, Türkiye';
 
-  // Petivox Logo (Base64 embedded for 100% reliable PDF rendering)
-  const logoUrl = PETIVOX_LOGO_BASE64;
+  // Real Petivox Logo (Public static JPG asset)
+  const logoUrl = '/Petivx.jpg';
 
   // 4 ITEMS PER PAGE (2 COLS x 2 ROWS) FOR MAXIMUM WHATSAPP & MOBILE LEGIBILITY
   const ITEMS_PER_PAGE = 4;
