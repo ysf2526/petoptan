@@ -304,7 +304,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
 
       if (data && data.success) {
         showSuccess(
-          `Sipariş / Hızlı Satış kaydedildi (#${data.sale_number}). Durum: 🟡 Teslim Bekliyor. Ürün müşteriye teslim edildiğinde [✅ TESLİM EDİLDİ] butonuna basarak cari borcu ve ödeme planını başlatabilirsiniz.`
+          `Sipariş / Hızlı Satış kaydedildi (#${data.sale_number}). Durum: 🟡 Teslim Bekliyor. Ürün müşteriye teslim edildiğinde [✅ TESLİM EDİLDİ] butonuna basarak cari borcu kesinleştirebilirsiniz.`
         );
         setBelowCostModalOpen(false);
         window.dispatchEvent(new CustomEvent('refresh-data'));
@@ -342,16 +342,6 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
       }
       if (it.quantity > it.current_stock) {
         showError(`${it.product_name} için stok yetersiz! (Mevcut: ${it.current_stock})`);
-        return;
-      }
-    }
-
-    // Validate schedules sum if vadeli
-    if (paymentType === 'vadeli') {
-      const schedSum = Number(schedules.reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toFixed(2));
-      const grandSum = Number(totals.grandTotal.toFixed(2));
-      if (Math.abs(schedSum - grandSum) > 0.05) {
-        showError(`Taksit ödeme planı toplamı (${formatCurrency(schedSum)}) satış tutarına (${formatCurrency(grandSum)}) eşit olmalıdır.`);
         return;
       }
     }

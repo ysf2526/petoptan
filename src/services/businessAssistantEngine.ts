@@ -298,21 +298,34 @@ export async function calculateBusinessAssistantInsights(): Promise<BusinessAssi
   const { data: allS } = await supabase.from('sales').select('*').is('deleted_at', null);
 
   const overdueList: any[] = [];
+  let weeklyDueCount = 0;
+  let weeklyDueDebtTotal = 0;
+  let criticalDueCount = 0;
+  let criticalDueDebtTotal = 0;
+
   customersList?.forEach((c) => {
     const debt = cDebtMap[c.id] || 0;
     if (debt > 0) {
       const res = calculateCustomerPaymentDelay(c as any, debt, (allP as any) || [], (allS as any) || []);
       if (res.status !== 'normal') {
         overdueList.push(res);
+        if (res.daysSinceLastPayment > 10) {
+          criticalDueCount++;
+          criticalDueDebtTotal += debt;
+        } else if (res.daysSinceLastPayment >= 7) {
+          weeklyDueCount++;
+          weeklyDueDebtTotal += debt;
+        }
+
         const waText = `Merhaba ${c.business_name}, hesabınızda ${formatCurrency(debt)} güncel cari borç bakiyesi bulunmaktadır. Son ödemenizin üzerinden ${res.daysSinceLastPayment} gün geçmiştir. Ödeme durumunuzla ilgili bilgi vermenizi rica ederiz. Teşekkürler.`;
 
         insights.push({
           id: `cust-overdue-${c.id}`,
           category: 'CUSTOMER',
-          priority: res.status === 'critical_14_days' ? 'CRITICAL' : 'IMPORTANT',
-          title: `🔴 ${c.business_name} — ${res.daysSinceLastPayment} Gündür Ödeme Yok`,
+          priority: res.daysSinceLastPayment > 10 ? 'CRITICAL' : 'IMPORTANT',
+          title: `${res.daysSinceLastPayment > 10 ? '🔴' : '🟡'} ${c.business_name} — ${res.daysSinceLastPayment} Gündür Ödeme Yok`,
           description: `Güncel cari borç: ${formatCurrency(debt)}. Son ödeme/teslimat tarihinden bu yana ${res.daysSinceLastPayment} gündür tahsilat yapılmadı.`,
-          whyExplanation: `Müşteri borcu 0 TL olmadıkça takip edilir. 7+ gün gecikmeler sarı/kırmızı alarm verir.`,
+          whyExplanation: `Müşteri borcu 0 TL olmadıkça takip edilir. 7-10 gün uyarısı ve 10+ gün gecikme alarmı verir.`,
           metricPrimary: formatCurrency(debt),
           metricSecondary: `${res.daysSinceLastPayment} Gün`,
           actionType: 'WHATSAPP_CUSTOMER',
@@ -327,6 +340,24 @@ export async function calculateBusinessAssistantInsights(): Promise<BusinessAssi
       }
     }
   });
+
+  // Summary Insight for Weekly Collections
+  if (weeklyDueCount > 0 || criticalDueCount > 0) {
+    const totCount = weeklyDueCount + criticalDueCount;
+    const totDebt = weeklyDueDebtTotal + criticalDueDebtTotal;
+    insights.push({
+      id: 'weekly-collection-summary',
+      category: 'CASHFLOW',
+      priority: criticalDueCount > 0 ? 'CRITICAL' : 'IMPORTANT',
+      title: `🔴 Bugün ${totCount} Müşteriden Ödeme İstenmesi Gerekiyor`,
+      description: `Toplam ${formatCurrency(totDebt)} cari borçları bulunuyor. (${weeklyDueCount} müşteri 7-10 günlük tahsilat penceresinde, ${criticalDueCount} müşterinin ödemesi 10 günü geçti).`,
+      whyExplanation: `Müşterilerden her hafta düzenli tahsilat almak işletme nakit akışı için kritik önem taşır. Tahsilat Takip Panelini inceleyin.`,
+      metricPrimary: `${totCount} Müşteri`,
+      metricSecondary: formatCurrency(totDebt),
+      actionType: 'CUSTOMER_PAYMENT',
+      timeframe: 'TODAY',
+    });
+  }
 
   // ----------------------------------------------------
   // MODULE 5: PROFIT TARGET ANALYSIS (KÂR HEDEFİ ASİSTANI)
