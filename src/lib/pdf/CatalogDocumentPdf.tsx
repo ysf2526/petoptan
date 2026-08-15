@@ -30,18 +30,18 @@ Font.registerHyphenationCallback((word) => [word]);
 const styles = StyleSheet.create({
   // PAGE DEFAULTS
   page: {
-    paddingTop: 18,
+    paddingTop: 16,
     paddingBottom: 22,
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
     backgroundColor: '#FFFFFF',
     color: '#0F172A',
     fontFamily: 'Roboto',
   },
 
-  // 1. COVER PAGE DESIGN (PETIVOX CORPORATE B2B)
+  // 1. COVER PAGE DESIGN (PETIVOX CORPORATE DARK GREEN B2B)
   coverPage: {
     padding: 32,
-    backgroundColor: '#0B192C', // Deep Corporate Navy
+    backgroundColor: '#0A2E23', // Petivox Corporate Dark Forest Green
     color: '#FFFFFF',
     fontFamily: 'Roboto',
     display: 'flex',
@@ -55,17 +55,17 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   coverLogoImage: {
-    width: 120,
-    height: 120,
+    width: 125,
+    height: 125,
     borderRadius: 18,
     objectFit: 'contain',
   },
   coverHeroCard: {
     marginVertical: 'auto',
-    backgroundColor: '#1E293B',
+    backgroundColor: '#0D382B',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#154D3C',
     padding: 24,
     textAlign: 'center',
     alignItems: 'center',
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   coverBrandTitle: {
     fontSize: 16,
     fontWeight: 700,
-    color: '#38BDF8', // Cyan Accent
+    color: '#A7F3D0', // Mint Accent
     marginBottom: 8,
     letterSpacing: 2,
     textTransform: 'uppercase',
@@ -87,32 +87,32 @@ const styles = StyleSheet.create({
   },
   coverSubtitle: {
     fontSize: 11,
-    color: '#94A3B8', // Soft slate text
+    color: '#E2E8F0',
     marginBottom: 16,
     lineHeight: 1.4,
     maxWidth: 380,
   },
   coverBadge: {
-    backgroundColor: '#0284C7', // Sky Blue badge
+    backgroundColor: '#10B981', // Emerald Green Badge
     color: '#FFFFFF',
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 14,
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: 700,
     alignSelf: 'center',
   },
   coverFooterCard: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#052219',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: '#0F4232',
     padding: 16,
     color: '#FFFFFF',
   },
   coverContactHeading: {
     fontSize: 9,
-    color: '#38BDF8',
+    color: '#34D399',
     fontWeight: 700,
     marginBottom: 6,
     textTransform: 'uppercase',
@@ -141,54 +141,61 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerLogoImage: {
-    width: 30,
-    height: 30,
+    width: 28,
+    height: 28,
     borderRadius: 6,
     objectFit: 'contain',
   },
   headerBrandText: {
     fontSize: 10,
     fontWeight: 700,
-    color: '#0F172A',
+    color: '#0A2E23',
     letterSpacing: 0.5,
   },
   headerCatalogTitle: {
     fontSize: 9,
-    color: '#0284C7',
+    color: '#059669',
     fontWeight: 700,
     textTransform: 'uppercase',
   },
 
-  // CATEGORY BANNER
+  // SECTION CATEGORY BANNER
   categoryBanner: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0A2E23', // Dark Forest Green
     borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginBottom: 8,
-    marginTop: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderLeftWidth: 4,
+    borderLeftColor: '#10B981', // Mint left accent border
   },
   categoryTitleText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: 700,
     color: '#FFFFFF',
     textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  categorySubtitleText: {
+    fontSize: 8,
+    color: '#A7F3D0',
+    fontWeight: 700,
     letterSpacing: 0.5,
   },
 
-  // 3. PRODUCT GRID (2 COLS x 3 ROWS = 6 ITEMS PER PAGE)
+  // 3. PRODUCT GRID (2 COLS x 3 ROWS = MAX 6 ITEMS PER PAGE)
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    rowGap: 8,
+    rowGap: 10,
   },
   productCard: {
     width: '48.8%',
-    height: 216,
+    height: 228,
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
     borderWidth: 1,
@@ -199,17 +206,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   imageContainer: {
-    height: 105,
+    height: 118,
     width: '100%',
     backgroundColor: '#FAFAFA',
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#F1F5F9',
-    marginBottom: 5,
+    marginBottom: 6,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    padding: 4,
   },
   productImage: {
     width: '100%',
@@ -233,7 +241,7 @@ const styles = StyleSheet.create({
   brandText: {
     fontSize: 7.5,
     fontWeight: 700,
-    color: '#0284C7',
+    color: '#059669', // Emerald Brand Tag
     textTransform: 'uppercase',
     marginBottom: 1,
     letterSpacing: 0.3,
@@ -271,13 +279,13 @@ const styles = StyleSheet.create({
     marginBottom: 1,
   },
   priceAmount: {
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: 700,
-    color: '#0369A1', // Strong Blue Price
+    color: '#0D382B', // Deep Green Price
   },
   priceBadge: {
-    backgroundColor: '#E0F2FE',
-    color: '#0369A1',
+    backgroundColor: '#D1FAE5',
+    color: '#065F46',
     fontSize: 7,
     fontWeight: 700,
     paddingHorizontal: 6,
@@ -289,8 +297,8 @@ const styles = StyleSheet.create({
   footer: {
     position: 'absolute',
     bottom: 14,
-    left: 22,
-    right: 22,
+    left: 20,
+    right: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -311,7 +319,7 @@ const styles = StyleSheet.create({
   // 4. CLOSING CONTACT PAGE (SON SAYFA)
   contactPage: {
     padding: 32,
-    backgroundColor: '#0B192C',
+    backgroundColor: '#0A2E23',
     color: '#FFFFFF',
     fontFamily: 'Roboto',
     display: 'flex',
@@ -334,7 +342,7 @@ const styles = StyleSheet.create({
   },
   contactSubTitle: {
     fontSize: 11,
-    color: '#94A3B8',
+    color: '#A7F3D0',
     marginBottom: 24,
     lineHeight: 1.5,
     maxWidth: 400,
@@ -344,16 +352,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   contactCard: {
-    backgroundColor: '#1E293B',
+    backgroundColor: '#0D382B',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#154D3C',
     padding: 14,
     alignItems: 'center',
   },
   contactCardLabel: {
     fontSize: 8.5,
-    color: '#38BDF8',
+    color: '#34D399',
     fontWeight: 700,
     textTransform: 'uppercase',
     marginBottom: 4,
@@ -372,14 +380,11 @@ interface CatalogDocumentPdfProps {
   generatedDate: string;
 }
 
-interface CatalogItem {
-  product: Product;
-  category: string;
-}
-
-interface CategoryGroupOnPage {
+interface CategoryPageData {
   categoryName: string;
   items: Product[];
+  pageIndexInCategory: number;
+  totalPagesInCategory: number;
 }
 
 const formatPackagingUnit = (unit?: string | null) => {
@@ -400,22 +405,29 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
   // Real Petivox Logo (Public static JPG asset - DO NOT CHANGE)
   const logoUrl = typeof window !== 'undefined' ? '/Petivx.jpg' : 'public/Petivx.jpg';
 
-  // EXACT REQ: 6 PRODUCTS PER PAGE (2 COLS x 3 ROWS)
+  // EXACT REQ: MAX 6 PRODUCTS PER PAGE (2 COLS x 3 ROWS)
   const ITEMS_PER_PAGE = 6;
 
-  // Flatten products ordered by category
-  const allCatalogItems: CatalogItem[] = [];
-  Object.entries(productsByCategory).forEach(([cat, items]) => {
-    items.forEach((p) => {
-      allCatalogItems.push({ product: p, category: cat });
-    });
-  });
+  // STRICT CATEGORY ISOLATION ALGORITHM:
+  // Each category gets its OWN isolated page sequence!
+  // No page will EVER mix products from two different categories!
+  const pages: CategoryPageData[] = [];
 
-  // Partition into pages of exactly 6 items max
-  const pagesOfItems: CatalogItem[][] = [];
-  for (let i = 0; i < allCatalogItems.length; i += ITEMS_PER_PAGE) {
-    pagesOfItems.push(allCatalogItems.slice(i, i + ITEMS_PER_PAGE));
-  }
+  Object.entries(productsByCategory).forEach(([categoryName, items]) => {
+    if (!items || items.length === 0) return;
+
+    const totalPagesForCat = Math.ceil(items.length / ITEMS_PER_PAGE);
+
+    for (let pIdx = 0; pIdx < totalPagesForCat; pIdx++) {
+      const pageItems = items.slice(pIdx * ITEMS_PER_PAGE, (pIdx + 1) * ITEMS_PER_PAGE);
+      pages.push({
+        categoryName,
+        items: pageItems,
+        pageIndexInCategory: pIdx,
+        totalPagesInCategory: totalPagesForCat,
+      });
+    }
+  });
 
   return (
     <Document title={`${businessName} - TOPTAN ÜRÜN KATALOĞU`}>
@@ -444,102 +456,85 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
         </View>
       </Page>
 
-      {/* 2. PRODUCT PAGES (6 PRODUCTS PER PAGE - 2 COLS x 3 ROWS) */}
-      {pagesOfItems.map((pageItems, pageIdx) => {
-        // Group the 6 items on this page by category while preserving order
-        const categoriesOnPage: CategoryGroupOnPage[] = [];
-        pageItems.forEach((ci) => {
-          const lastGroup = categoriesOnPage[categoriesOnPage.length - 1];
-          if (lastGroup && lastGroup.categoryName === ci.category) {
-            lastGroup.items.push(ci.product);
-          } else {
-            categoriesOnPage.push({
-              categoryName: ci.category,
-              items: [ci.product],
-            });
-          }
-        });
-
-        return (
-          <Page key={`catalog_page_${pageIdx}`} size="A4" style={styles.page}>
-            {/* Inner Header */}
-            <View style={styles.innerHeader}>
-              <View style={styles.headerLeft}>
-                <Image src={logoUrl} style={styles.headerLogoImage} />
-                <Text style={styles.headerBrandText}>{businessName}</Text>
-              </View>
-              <Text style={styles.headerCatalogTitle}>TOPTAN ÜRÜN KATALOĞU</Text>
+      {/* 2. ISOLATED CATEGORY PRODUCT PAGES */}
+      {pages.map((pageData, pageIdx) => (
+        <Page key={`cat_page_${pageIdx}`} size="A4" style={styles.page}>
+          {/* Inner Header */}
+          <View style={styles.innerHeader}>
+            <View style={styles.headerLeft}>
+              <Image src={logoUrl} style={styles.headerLogoImage} />
+              <Text style={styles.headerBrandText}>{businessName}</Text>
             </View>
+            <Text style={styles.headerCatalogTitle}>TOPTAN ÜRÜN KATALOĞU</Text>
+          </View>
 
-            {/* Render Category Sections on this Page */}
-            {categoriesOnPage.map((catGroup, catIdx) => (
-              <View key={`cat_${pageIdx}_${catIdx}`} style={{ marginBottom: 6 }}>
-                {/* Category Header */}
-                <View style={styles.categoryBanner}>
-                  <Text style={styles.categoryTitleText}>{catGroup.categoryName}</Text>
+          {/* Dedicated Category Banner Header */}
+          <View style={styles.categoryBanner}>
+            <Text style={styles.categoryTitleText}>
+              {pageData.categoryName}
+              {pageData.totalPagesInCategory > 1 ? ` (${pageData.pageIndexInCategory + 1}/${pageData.totalPagesInCategory})` : ''}
+            </Text>
+            <Text style={styles.categorySubtitleText}>TOPTAN ÜRÜNLER</Text>
+          </View>
+
+          {/* Product Grid (Max 6 products: 2 cols x 3 rows) */}
+          <View style={styles.gridContainer}>
+            {pageData.items.map((product) => (
+              <View key={product.id} style={styles.productCard} wrap={false}>
+                {/* Product Image */}
+                <View style={styles.imageContainer}>
+                  {product.image_url ? (
+                    <Image src={product.image_url} style={styles.productImage} />
+                  ) : (
+                    <View style={styles.placeholderBox}>
+                      <Text style={styles.placeholderText}>🐾 Görsel Yok</Text>
+                    </View>
+                  )}
                 </View>
 
-                {/* Product Grid (2 columns x items) */}
-                <View style={styles.gridContainer}>
-                  {catGroup.items.map((product) => (
-                    <View key={product.id} style={styles.productCard} wrap={false}>
-                      {/* Product Image */}
-                      <View style={styles.imageContainer}>
-                        {product.image_url ? (
-                          <Image src={product.image_url} style={styles.productImage} />
-                        ) : (
-                          <View style={styles.placeholderBox}>
-                            <Text style={styles.placeholderText}>🐾 Görsel Yok</Text>
-                          </View>
-                        )}
-                      </View>
+                {/* Product Metadata */}
+                <View style={styles.metaContainer}>
+                  {product.brand && (
+                    <Text style={styles.brandText}>{product.brand}</Text>
+                  )}
+                  <Text style={styles.productTitle}>
+                    {product.product_name}
+                  </Text>
+                  <Text style={styles.unitBadge}>
+                    {formatPackagingUnit(product.unit)}
+                  </Text>
+                </View>
 
-                      {/* Product Metadata */}
-                      <View style={styles.metaContainer}>
-                        {product.brand && (
-                          <Text style={styles.brandText}>{product.brand}</Text>
-                        )}
-                        <Text style={styles.productTitle}>
-                          {product.product_name}
-                        </Text>
-                        <Text style={styles.unitBadge}>
-                          {formatPackagingUnit(product.unit)}
-                        </Text>
-                      </View>
-
-                      {/* Price Section */}
-                      <View style={styles.priceRow}>
-                        <View>
-                          <Text style={styles.priceTag}>TOPTAN FİYAT</Text>
-                          <Text style={styles.priceAmount}>
-                            {product.sale_price.toLocaleString('tr-TR', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}{' '}
-                            TL
-                          </Text>
-                        </View>
-                        <Text style={styles.priceBadge}>TOPTAN</Text>
-                      </View>
-                    </View>
-                  ))}
+                {/* Price Section */}
+                <View style={styles.priceRow}>
+                  <View>
+                    <Text style={styles.priceTag}>TOPTAN FİYAT</Text>
+                    <Text style={styles.priceAmount}>
+                      {product.sale_price.toLocaleString('tr-TR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{' '}
+                      TL
+                    </Text>
+                  </View>
+                  <Text style={styles.priceBadge}>TOPTAN</Text>
                 </View>
               </View>
             ))}
+          </View>
 
-            {/* Page Footer */}
-            <View style={styles.footer} fixed>
-              <Text style={styles.footerText}>
-                Petivox Toptan Satış • Telefon / WhatsApp: {phone}
-              </Text>
-              <Text
-                style={styles.pageNumber}
-                render={({ pageNumber, totalPages }) => `Sayfa ${pageNumber} / ${totalPages}`}
-              />
-            </View>
-          </Page>
-        );
-      })}
+          {/* Page Footer */}
+          <View style={styles.footer} fixed>
+            <Text style={styles.footerText}>
+              Petivox Toptan Satış • Telefon / WhatsApp: {phone}
+            </Text>
+            <Text
+              style={styles.pageNumber}
+              render={({ pageNumber, totalPages }) => `Sayfa ${pageNumber} / ${totalPages}`}
+            />
+          </View>
+        </Page>
+      ))}
 
       {/* 3. CLOSING CONTACT PAGE (SON SAYFA) */}
       <Page size="A4" style={styles.contactPage}>
@@ -568,8 +563,8 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
           </View>
         </View>
 
-        <View style={{ borderTopWidth: 1, borderTopColor: '#1E293B', paddingTop: 12, textAlign: 'center' }}>
-          <Text style={{ fontSize: 8.5, color: '#94A3B8' }}>
+        <View style={{ borderTopWidth: 1, borderTopColor: '#154D3C', paddingTop: 12, textAlign: 'center' }}>
+          <Text style={{ fontSize: 8.5, color: '#A7F3D0' }}>
             Petivox Toptan Satış • Petshop İşletmelerinin Güvenilir Tedarikçisi • {generatedDate}
           </Text>
         </View>
