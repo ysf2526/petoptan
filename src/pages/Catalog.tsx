@@ -161,13 +161,13 @@ export const Catalog: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 animate-fadeIn pb-24">
       {/* Top Banner */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900 border border-purple-900/60 p-5 sm:p-6 rounded-2xl shadow-xl">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900 border border-purple-900/60 p-4 sm:p-6 rounded-2xl shadow-xl">
         <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-lg bg-purple-600/20 text-purple-400 text-xs font-black border border-purple-500/30">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2.5 py-1 rounded-lg bg-purple-600/20 text-purple-400 text-[10px] sm:text-xs font-black border border-purple-500/30">
               PROFESYONEL B2B PDF KATALOG
             </span>
-            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+            <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight">
               ÜRÜN KATALOĞU (PDF GENERATOR)
             </h1>
           </div>
@@ -177,11 +177,11 @@ export const Catalog: React.FC = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5">
           <button
             onClick={generatePreviewPdf}
             disabled={generatingPdf}
-            className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition-all"
+            className="w-full sm:w-auto justify-center bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition-all"
             title="Kataloğu Yenile"
           >
             <RefreshCw className={`w-4 h-4 text-purple-400 ${generatingPdf ? 'animate-spin' : ''}`} />
@@ -191,7 +191,7 @@ export const Catalog: React.FC = () => {
           <button
             onClick={handleShareWhatsApp}
             disabled={generatingPdf}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-95 disabled:opacity-50"
+            className="w-full sm:w-auto justify-center bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-95 disabled:opacity-50"
           >
             <MessageCircle className="w-4.5 h-4.5" />
             <span>WHATSAPP'TAN GÖNDER</span>
@@ -200,7 +200,7 @@ export const Catalog: React.FC = () => {
           <button
             onClick={handleDownloadPdf}
             disabled={generatingPdf}
-            className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-purple-600/20 transition-all active:scale-95 disabled:opacity-50"
+            className="w-full sm:w-auto justify-center bg-purple-600 hover:bg-purple-500 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-purple-600/20 transition-all active:scale-95 disabled:opacity-50"
           >
             {generatingPdf ? <Loader2 className="w-4.5 h-4.5 animate-spin" /> : <Download className="w-4.5 h-4.5" />}
             <span>📄 PDF KATALOĞU İNDİR</span>
@@ -223,7 +223,7 @@ export const Catalog: React.FC = () => {
             </span>
           </div>
 
-          <div className="w-full h-[600px] bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex flex-col items-center justify-center relative">
+          <div className="w-full h-[450px] sm:h-[600px] bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex flex-col items-center justify-center relative">
             {generatingPdf ? (
               <div className="flex flex-col items-center gap-2 text-slate-400">
                 <Loader2 className="w-8 h-8 animate-spin text-purple-500" />

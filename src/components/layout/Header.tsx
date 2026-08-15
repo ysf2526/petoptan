@@ -20,10 +20,18 @@ export const Header: React.FC<HeaderProps> = ({
     switch (path) {
       case '/':
         return 'Ana Dashboard';
+      case '/catalog':
+        return 'PDF Ürün Kataloğu';
+      case '/pre-orders':
+        return 'Ön Sipariş Yönetimi';
+      case '/supply-plan':
+        return 'Tedarik Planlama';
+      case '/assistant':
+        return '🤖 İşletme Asistanı';
       case '/sales':
         return 'Satış Geçmişi & Yönetimi';
       case '/products':
-        return 'Ürün Kataloğu & Stok Kartları';
+        return 'Ürünler & Stok Kartları';
       case '/stock':
         return 'Stok Hareketleri & Depo';
       case '/customers':

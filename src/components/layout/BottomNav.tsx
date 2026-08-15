@@ -20,25 +20,36 @@ import {
   Bot,
   ClipboardList,
   PackageSearch,
+  FileText,
 } from 'lucide-react';
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: any;
+  badge?: string;
+  highlight?: boolean;
+}
 
 export const BottomNav: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { logout, profile, user } = useAuth();
 
-  const mainNav = [
+  const mainNav: NavItem[] = [
     { to: '/', label: 'Ana Sayfa', icon: LayoutDashboard },
     { to: '/pre-orders', label: 'Ön Sipariş', icon: ClipboardList },
     { to: '/sales', label: 'Satış', icon: ShoppingCart },
     { to: '/customers', label: 'Müşteriler', icon: Users },
   ];
 
-  const moreNav = [
-    { to: '/pre-orders', label: '📋 Ön Siparişler', icon: ClipboardList },
-    { to: '/supply-plan', label: '📦 Tedarik Planı', icon: PackageSearch },
-    { to: '/assistant', label: '🤖 İşletme Asistanı', icon: Bot },
+  const moreNav: NavItem[] = [
+    { to: '/catalog', label: 'PDF Ürün Kataloğu', icon: FileText, badge: 'YENİ', highlight: true },
+    { to: '/pre-orders', label: 'Ön Siparişler', icon: ClipboardList },
+    { to: '/supply-plan', label: 'Tedarik Planı', icon: PackageSearch },
+    { to: '/assistant', label: 'İşletme Asistanı', icon: Bot },
     { to: '/products', label: 'Ürünler & Stok Kartları', icon: Package },
     { to: '/stock', label: 'Stok & Depo Girişi', icon: Boxes },
+    { to: '/ledger', label: 'Cari Hesaplar', icon: BookOpen },
     { to: '/collections', label: 'Tahsilatlar & Vadeler', icon: Receipt },
     { to: '/suppliers', label: 'Tedarikçiler', icon: Truck },
     { to: '/profit-targets', label: 'Kâr Hedefleri', icon: TrendingUp },
@@ -46,7 +57,6 @@ export const BottomNav: React.FC = () => {
     { to: '/audit-logs', label: 'İşlem Günlüğü', icon: ShieldCheck },
     { to: '/settings', label: 'Ayarlar', icon: Settings },
   ];
-
 
   return (
     <>
@@ -88,15 +98,27 @@ export const BottomNav: React.FC = () => {
                     to={item.to}
                     onClick={() => setDrawerOpen(false)}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 p-3 rounded-xl border text-xs font-semibold transition-all ${
-                        isActive
+                      `flex items-center justify-between p-3 rounded-xl border text-xs font-semibold transition-all ${
+                        item.highlight
+                          ? isActive
+                            ? 'bg-purple-600/30 border-purple-500 text-purple-300 shadow-md shadow-purple-900/30'
+                            : 'bg-purple-950/40 border-purple-800/60 text-purple-200 hover:bg-purple-900/50'
+                          : isActive
                           ? 'bg-brand-600/20 border-brand-500/40 text-brand-400'
                           : 'bg-slate-800/60 border-slate-700/50 text-slate-300 hover:bg-slate-800'
                       }`
                     }
                   >
-                    <Icon className="w-4 h-4 shrink-0 text-brand-400" />
-                    <span className="truncate">{item.label}</span>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Icon className={`w-4 h-4 shrink-0 ${item.highlight ? 'text-purple-400' : 'text-brand-400'}`} />
+                      <span className="truncate">{item.label}</span>
+                    </div>
+
+                    {item.badge && (
+                      <span className="ml-1 bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0">
+                        {item.badge}
+                      </span>
+                    )}
                   </NavLink>
                 );
               })}
@@ -155,3 +177,4 @@ export const BottomNav: React.FC = () => {
     </>
   );
 };
+
