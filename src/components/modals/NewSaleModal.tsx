@@ -201,34 +201,6 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
     return { grandTotal, totalCost, totalProfit, totalLoss, lossItemCount };
   }, [items]);
 
-  // Generate 4 weekly payment schedules if vadeli & custom not manually edited
-  useEffect(() => {
-    if (paymentType === 'vadeli' && totals.grandTotal > 0 && !customSchedules) {
-      const numWeeks = 4;
-      const basePerWeek = Number((totals.grandTotal / numWeeks).toFixed(2));
-      let remaining = totals.grandTotal;
-
-      const generated: ScheduleItem[] = [];
-      const today = new Date();
-
-      for (let i = 1; i <= numWeeks; i++) {
-        const d = new Date(today);
-        d.setDate(d.getDate() + i * 7);
-        const dateStr = d.toISOString().split('T')[0];
-
-        let amt = basePerWeek;
-        if (i === numWeeks) {
-          amt = Number(remaining.toFixed(2));
-        } else {
-          remaining -= basePerWeek;
-        }
-
-        generated.push({ due_date: dateStr, amount: Math.max(0, amt) });
-      }
-      setSchedules(generated);
-    }
-  }, [paymentType, totals.grandTotal, customSchedules]);
-
   if (!isOpen) return null;
 
   const handleAddItem = (prodId: string) => {
@@ -658,75 +630,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                 </div>
               </div>
 
-              {/* Step 3: Clean Vertical List Payment Schedule Customizer (If Vadeli) */}
-              {paymentType === 'vadeli' && totals.grandTotal > 0 && (
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/80 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                        Haftalık Ödeme Planı (Taksitler)
-                      </h3>
-                      <p className="text-[11px] text-slate-400">
-                        Tarihleri ve taksit tutarlarını liste üzerinden düzenleyebilirsiniz.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleAddScheduleRow}
-                      className="text-xs font-semibold text-brand-400 hover:underline flex items-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Taksit Ekle</span>
-                    </button>
-                  </div>
 
-                  {/* Vertical Clean Stack */}
-                  <div className="space-y-2">
-                    {schedules.map((sch, sIdx) => (
-                      <div
-                        key={sIdx}
-                        className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                      >
-                        <span className="font-semibold text-slate-200 shrink-0 min-w-[90px]">
-                          {sIdx + 1}. Taksit
-                        </span>
-
-                        <div className="flex items-center gap-2 flex-1">
-                          <span className="text-slate-400 text-xs font-medium">Tarih:</span>
-                          <input
-                            type="date"
-                            value={sch.due_date}
-                            onChange={(e) => handleUpdateSchedule(sIdx, 'due_date', e.target.value)}
-                            className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 outline-none focus:border-brand-500"
-                          />
-                        </div>
-
-                        <div className="flex items-center gap-2 flex-1">
-                          <span className="text-slate-400 text-xs font-medium">Tutar:</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={sch.amount}
-                            onChange={(e) => handleUpdateSchedule(sIdx, 'amount', e.target.value)}
-                            className="w-32 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-bold text-right outline-none focus:border-brand-500"
-                          />
-                          <span className="text-slate-400 text-xs font-semibold">TL</span>
-                        </div>
-
-                        {schedules.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveScheduleRow(sIdx)}
-                            className="p-1 text-slate-400 hover:text-rose-400 self-end sm:self-center"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Notes */}
               <div>
