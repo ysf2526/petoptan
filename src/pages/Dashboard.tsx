@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { formatCurrency, formatNumber, formatDateTime } from '@/utils/formatters';
+import { formatCurrency, formatNumber, formatDateTime, formatDate } from '@/utils/formatters';
 import { DashboardStats, Product, Sale, OrderStatus, ORDER_STATUS_MAP } from '@/types/database.types';
 import { useToast } from '@/context/ToastContext';
 import { parseErrorMessage } from '@/utils/errors';
@@ -10,6 +10,7 @@ import { SaleDetailModal } from '@/components/modals/SaleDetailModal';
 import { ConfirmDeliveryModal } from '@/components/modals/ConfirmDeliveryModal';
 import { CancelSaleModal } from '@/components/modals/CancelSaleModal';
 import { preOrderService } from '@/services/preOrderService';
+import { calculateCustomerPaymentDelay, CustomerPaymentDelayResult } from '@/services/customerOverdueService';
 import {
   TrendingUp,
   Receipt,
@@ -89,6 +90,7 @@ export const Dashboard: React.FC = () => {
   const [criticalProducts, setCriticalProducts] = useState<Product[]>([]);
   const [recentSales, setRecentSales] = useState<any[]>([]);
   const [salesTrend, setSalesTrend] = useState<any[]>([]);
+  const [overdueCustomers, setOverdueCustomers] = useState<CustomerPaymentDelayResult[]>([]);
 
   // Today's Operational Orders & Counts (Requirements 3, 5, 19)
   const [todayOrders, setTodayOrders] = useState<Sale[]>([]);
@@ -389,7 +391,25 @@ export const Dashboard: React.FC = () => {
 
       setRecentSales(salesList || []);
 
-      // 11. Sales Trend Chart Data (Last 7 Days)
+      // 11. Overdue Customers Calculation (7+ Days Payment Delay)
+      const { data: allCusts } = await supabase.from('customers').select('*').is('deleted_at', null);
+      const { data: allPays } = await supabase.from('payments').select('*').is('deleted_at', null);
+      const { data: allSals } = await supabase.from('sales').select('*').is('deleted_at', null);
+
+      const delayList: CustomerPaymentDelayResult[] = [];
+      (allCusts || []).forEach((c) => {
+        const debt = customerDebtMap[c.id] || 0;
+        if (debt > 0) {
+          const res = calculateCustomerPaymentDelay(c, debt, allPays || [], allSals || []);
+          if (res.status !== 'normal') {
+            delayList.push(res);
+          }
+        }
+      });
+      delayList.sort((a, b) => b.daysSinceLastPayment - a.daysSinceLastPayment);
+      setOverdueCustomers(delayList);
+
+      // 12. Sales Trend Chart Data (Last 7 Days)
       const last7Days = Array.from({ length: 7 }, (_, i) => {
         const d = new Date();
         d.setDate(d.getDate() - (6 - i));
@@ -558,6 +578,64 @@ export const Dashboard: React.FC = () => {
           </div>
         </Link>
       </div>
+
+      {/* 🔴 7+ GÜN ÖDEME GECİKMELERİ WIDGET CARD */}
+      {overdueCustomers.length > 0 && (
+        <div className="bg-slate-900 border border-amber-500/40 p-4 sm:p-5 rounded-2xl shadow-xl space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400">
+                <AlertTriangle className="w-5 h-5 animate-pulse" />
+              </span>
+              <div>
+                <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-wider">
+                  🔴 ÖDEME GECİKMELERİ ({overdueCustomers.length} MÜŞTERİ)
+                </h3>
+                <p className="text-[11px] text-amber-300/80 font-medium">7 gün ve üzeri süredir ödeme yapmayan müşteriler</p>
+              </div>
+            </div>
+            <Link to="/customers" className="text-xs font-bold text-amber-400 hover:underline flex items-center gap-1">
+              <span>Tüm Cari Listesi</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {overdueCustomers.slice(0, 6).map((c) => (
+              <Link
+                key={c.customer_id}
+                to={`/customers/${c.customer_id}`}
+                className="bg-slate-950 p-3.5 rounded-xl border border-amber-900/40 hover:border-amber-500 transition-all flex flex-col justify-between space-y-2 group"
+              >
+                <div className="flex items-start justify-between">
+                  <span className="font-bold text-sm text-slate-100 group-hover:text-amber-400 transition-colors line-clamp-1">
+                    {c.customer_name}
+                  </span>
+                  <span
+                    className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                      c.status === 'critical_14_days'
+                        ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                        : 'bg-amber-950 text-amber-300 border border-amber-800'
+                    }`}
+                  >
+                    {c.badgeLabel}
+                  </span>
+                </div>
+
+                <div className="flex items-baseline justify-between pt-1 border-t border-slate-900">
+                  <div className="text-[11px] text-slate-400">
+                    <span>Son Ödeme: </span>
+                    <span className="font-mono font-medium text-slate-300">
+                      {c.lastPaymentDate ? formatDate(c.lastPaymentDate) : 'Henüz ödeme yok'}
+                    </span>
+                  </div>
+                  <span className="font-mono font-black text-amber-400 text-sm">{formatCurrency(c.netTotalDebt)}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* BUGÜNÜN OPERASYON ÖZETİ WIDGET (REQUIREMENT 5 & 19) */}
       <div className="bg-slate-900 border border-brand-500/30 p-4 sm:p-5 rounded-2xl shadow-xl space-y-3">

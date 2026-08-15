@@ -3,7 +3,7 @@ import { pdf } from '@react-pdf/renderer';
 import { supabase } from '@/lib/supabase';
 import { Sale, SaleItem, PaymentSchedule, Customer, Profile } from '@/types/database.types';
 import { SalesDocumentPdf } from '@/lib/pdf/SalesDocumentPdf';
-import { buildConsolidatedPaymentPlan, calculateNetCustomerDebt } from '@/services/consolidatedPaymentPlanService';
+import { calculateNetCustomerDebt } from '@/services/consolidatedPaymentPlanService';
 
 /**
  * Native PDF Generator Service using @react-pdf/renderer
@@ -25,7 +25,7 @@ export function downloadPdfFile(file: File | Blob, filename: string) {
 }
 
 /**
- * Generates a native vector PDF File for a Sale Document with Consolidated Payment Plan.
+ * Generates a native vector PDF File for a Sale Document with Clean Financial Summary.
  */
 export async function generateSalesPdfFile(
   sale: Sale,
@@ -53,64 +53,34 @@ export async function generateSalesPdfFile(
     .order('created_at', { ascending: false })
     .order('id', { ascending: false });
 
-  // 3. Fetch fresh payment schedules for consolidated plan
-  const { data: schedulesData } = await supabase
-    .from('payment_schedules')
-    .select('*')
-    .eq('customer_id', customerId)
-    .is('deleted_at', null)
-    .order('due_date', { ascending: true });
-
-  const salesList = (salesData as Sale[]) || [];
-  const ledgerEntries = lData || [];
-
-  // 4. Calculate accurate financial metrics using single source of truth helper
+  // 3. Compute net total debt & previous balance
   const { netTotalDebt, previousBalance, currentSaleAmount, paymentMade } = calculateNetCustomerDebt({
-    ledgerEntries,
-    salesList,
+    ledgerEntries: lData || [],
+    salesList: salesData || [],
     currentSale: sale,
   });
 
-  // 5. Generate consolidated payment plan over netTotalDebt
-  const plan = buildConsolidatedPaymentPlan(
-    customer,
-    netTotalDebt,
-    salesList,
-    (schedulesData as PaymentSchedule[]) || [],
-    customer?.weekly_payment_target
+  const pdfDoc = (
+    <SalesDocumentPdf
+      sale={sale}
+      items={items}
+      customer={customer}
+      profile={profile}
+      previousBalance={previousBalance}
+      currentSaleAmount={currentSaleAmount}
+      paymentMade={paymentMade}
+      netTotalDebt={netTotalDebt}
+    />
   );
 
-  const filename = `Satis_Belgesi_${sale.sale_number}.pdf`;
+  const blob = await pdf(pdfDoc).toBlob();
+  const fileName = `Satis_Cari_${sale.sale_number}_${new Date().toISOString().slice(0, 10)}.pdf`;
 
-  // Render React PDF component tree into PDF blob using React.createElement
-  const element = React.createElement(SalesDocumentPdf, {
-    sale,
-    items,
-    customer,
-    profile,
-    previousBalance,
-    currentSaleAmount,
-    paymentMade,
-    netTotalDebt,
-    consolidatedInstallments: plan.installments,
-  });
-
-  const pdfInstance = pdf(element as any);
-  const pdfBlob = await pdfInstance.toBlob();
-
-  // Create genuine File with application/pdf MIME type
-  const pdfFile = new File([pdfBlob], filename, { type: 'application/pdf' });
-
-  // Runtime validation
-  if (pdfFile.type !== 'application/pdf' || !pdfFile.name.endsWith('.pdf')) {
-    throw new Error('Belge PDF (application/pdf) olarak oluşturulamadı.');
-  }
-
-  return pdfFile;
+  return new File([blob], fileName, { type: 'application/pdf' });
 }
 
 /**
- * Downloads and Shares genuine PDF file via native Web Share API or WhatsApp link.
+ * Generates PDF File, downloads it to user's device AND triggers Web Share / WhatsApp Web dispatch.
  */
 export async function shareOrDownloadSalesPdf(
   sale: Sale,
@@ -118,38 +88,35 @@ export async function shareOrDownloadSalesPdf(
   schedules: PaymentSchedule[],
   customer: Customer | null,
   profile: Profile | null,
-  phone: string,
+  phoneFormatted: string,
   messageText: string
-): Promise<{ method: 'native_share' | 'whatsapp_web_download'; pdfFile: File }> {
-  // Generate genuine PDF file with fresh DB data
+): Promise<{ pdfFile: File; method: 'web_share' | 'whatsapp_web_download' }> {
   const pdfFile = await generateSalesPdfFile(sale, items, schedules, customer, profile);
 
-  // Always trigger direct download of the PDF file
+  // Always trigger direct device download
   downloadPdfFile(pdfFile, pdfFile.name);
 
-  // Attempt native Web Share API with files (iOS Safari / Android Chrome)
-  const nav = navigator as any;
-  if (nav.share && nav.canShare && nav.canShare({ files: [pdfFile] })) {
+  // Try Web Share API with File
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
     try {
-      await nav.share({
-        title: pdfFile.name,
+      await navigator.share({
+        title: `Satış Belgesi - ${sale.sale_number}`,
         text: messageText,
         files: [pdfFile],
       });
-      return { method: 'native_share', pdfFile };
+      return { pdfFile, method: 'web_share' };
     } catch (err: any) {
-      if (err.name === 'AbortError') {
-        return { method: 'native_share', pdfFile };
+      if (err.name !== 'AbortError') {
+        console.warn('Web Share failed, fallback to WhatsApp Web download mode:', err);
       }
-      console.warn('Native PDF share failed, falling back to WhatsApp Web link:', err);
     }
   }
 
-  // Web Fallback: WhatsApp Web link
-  const digits = phone.replace(/\D/g, '');
+  // Fallback: WhatsApp Web with text and file downloaded
   const encodedText = encodeURIComponent(messageText);
-  const url = `https://wa.me/${digits}?text=${encodedText}`;
-  window.open(url, '_blank');
+  const cleanPhone = phoneFormatted.replace(/\D/g, '');
+  const waUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
+  window.open(waUrl, '_blank');
 
-  return { method: 'whatsapp_web_download', pdfFile };
+  return { pdfFile, method: 'whatsapp_web_download' };
 }

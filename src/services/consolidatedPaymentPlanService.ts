@@ -17,6 +17,7 @@ export interface ConsolidatedPaymentPlanSummary {
   installments: ConsolidatedInstallment[];
   termRiskWarning: string | null;
   newestSaleDueDate: string | null;
+  invariantError: string | null;
 }
 
 export interface CalculateDebtParams {
@@ -80,7 +81,8 @@ export function calculateNetCustomerDebt(params: CalculateDebtParams): NetDebtCa
 
 /**
  * Builds a unified, date-consolidated payment plan.
- * Preserves previous unpaid schedule due dates and amounts, and merges new sale installments on top by date.
+ * Map<dateStr, amount> merges installments on matching due dates while preserving exact previous schedule dates.
+ * Strictly asserts that SUM(installments.amount) === netTotalDebt.
  */
 export function buildConsolidatedPaymentPlan(
   customer: Customer | null,
@@ -91,17 +93,9 @@ export function buildConsolidatedPaymentPlan(
 ): ConsolidatedPaymentPlanSummary {
   const safeTotalDebt = Math.max(0, Number(totalDebt || 0));
 
-  // Determine Weekly Payment Target
-  let weeklyTarget = 0;
-  if (customWeeklyTarget && customWeeklyTarget > 0) {
-    weeklyTarget = customWeeklyTarget;
-  } else if (customer?.weekly_payment_target && Number(customer.weekly_payment_target) > 0) {
-    weeklyTarget = Number(customer.weekly_payment_target);
-  } else {
-    weeklyTarget = safeTotalDebt > 0 ? Math.ceil(safeTotalDebt / 4) : 2500;
-  }
-
-  // Calculate Overdue & Due This Week from schedules
+  // -------------------------------------------------------------------------
+  // 1. Calculate Overdue & Due This Week from active schedules
+  // -------------------------------------------------------------------------
   const todayStr = new Date().toISOString().split('T')[0];
   const nextWeekDate = new Date();
   nextWeekDate.setDate(nextWeekDate.getDate() + 7);
@@ -122,7 +116,7 @@ export function buildConsolidatedPaymentPlan(
   });
 
   // -------------------------------------------------------------------------
-  // CONSOLIDATION BY DUE DATE: Aggregate active unpaid schedule items by due_date
+  // 2. MAP<DATE, AMOUNT> CONSOLIDATION OF ACTIVE UNPAID SCHEDULES
   // -------------------------------------------------------------------------
   const activeUnpaidSchedules = (paymentSchedules || []).filter(
     (s) => Number(s.remaining_amount || 0) > 0 && s.status !== 'paid'
@@ -134,22 +128,21 @@ export function buildConsolidatedPaymentPlan(
     const d = sch.due_date;
     const amt = Number(sch.remaining_amount || 0);
     if (d && amt > 0) {
-      dateMap[d] = (dateMap[d] || 0) + amt;
+      dateMap[d] = Number(((dateMap[d] || 0) + amt).toFixed(2));
     }
   });
 
   const sortedDates = Object.keys(dateMap).sort();
-  const installments: ConsolidatedInstallment[] = [];
-  let runningUnplanned = safeTotalDebt;
+  let installments: ConsolidatedInstallment[] = [];
+  let runningBalance = safeTotalDebt;
   let weekIndex = 1;
 
   if (sortedDates.length > 0) {
-    // Merge active unpaid schedules by exact/closest due date
     for (const dStr of sortedDates) {
-      const instAmt = Math.min(dateMap[dStr], runningUnplanned);
+      const instAmt = Math.min(dateMap[dStr], runningBalance);
       if (instAmt <= 0) continue;
 
-      const nextBal = Math.max(0, runningUnplanned - instAmt);
+      const nextBal = Math.max(0, runningBalance - instAmt);
       installments.push({
         weekIndex,
         dueDate: dStr,
@@ -157,24 +150,26 @@ export function buildConsolidatedPaymentPlan(
         remainingBalance: Number(nextBal.toFixed(2)),
       });
 
-      runningUnplanned -= instAmt;
+      runningBalance = Number(nextBal.toFixed(2));
       weekIndex++;
-      if (runningUnplanned <= 0.01) break;
+      if (runningBalance <= 0.01) break;
     }
   }
 
-  // Fallback: If no DB schedules exist yet for an active debt, generate 4 weekly installments
-  if (runningUnplanned > 0.01) {
-    const fallbackTarget = Math.ceil(runningUnplanned / 4);
-    const today = new Date();
+  // -------------------------------------------------------------------------
+  // 3. SMOOTH RECONCILIATION FOR LEGACY UNPLANNED LEDGER BALANCE
+  // -------------------------------------------------------------------------
+  if (runningBalance > 0.01) {
+    const smoothTarget = Math.min(2500, Math.max(1000, Math.ceil(runningBalance / 4)));
+    const baseDate = sortedDates.length > 0 ? new Date(sortedDates[sortedDates.length - 1]) : new Date();
 
-    while (runningUnplanned > 0.01 && weekIndex <= 52) {
-      const d = new Date(today);
-      d.setDate(d.getDate() + (weekIndex * 7));
+    while (runningBalance > 0.01 && weekIndex <= 52) {
+      const d = new Date(baseDate);
+      d.setDate(d.getDate() + (installments.length + 1) * 7);
       const dStr = d.toISOString().split('T')[0];
 
-      const instAmt = Math.min(fallbackTarget, runningUnplanned);
-      const nextBal = Math.max(0, runningUnplanned - instAmt);
+      const instAmt = Math.min(smoothTarget, runningBalance);
+      const nextBal = Math.max(0, runningBalance - instAmt);
 
       installments.push({
         weekIndex,
@@ -183,12 +178,29 @@ export function buildConsolidatedPaymentPlan(
         remainingBalance: Number(nextBal.toFixed(2)),
       });
 
-      runningUnplanned -= instAmt;
+      runningBalance = Number(nextBal.toFixed(2));
       weekIndex++;
     }
+  }
+
+  // Ensure last installment row remainingBalance is strictly 0.00
+  if (installments.length > 0) {
+    installments[installments.length - 1].remainingBalance = 0.00;
+  }
+
+  // -------------------------------------------------------------------------
+  // 4. FINANCIAL INVARIANT ASSERTION: SUM(installments.amount) === safeTotalDebt
+  // -------------------------------------------------------------------------
+  const sumOfInstallments = Number(installments.reduce((acc, i) => acc + i.amount, 0).toFixed(2));
+  let invariantError: string | null = null;
+
+  if (safeTotalDebt > 0 && Math.abs(sumOfInstallments - safeTotalDebt) > 0.05) {
+    invariantError = `CRITICAL FINANCIAL INVARIANT VIOLATION: Total Debt (${safeTotalDebt}) does not match Consolidated Schedule Sum (${sumOfInstallments}).`;
+    console.error(invariantError);
   }
 
   const estimatedWeeksToClose = installments.length;
+  const weeklyTarget = customWeeklyTarget || Number(customer?.weekly_payment_target || 0) || Math.ceil(safeTotalDebt / Math.max(1, installments.length));
 
   const activeSales = sales?.filter((s) => s.status !== 'cancelled') || [];
   const newestSale = activeSales.length > 0 ? activeSales[0] : null;
@@ -213,5 +225,6 @@ export function buildConsolidatedPaymentPlan(
     installments,
     termRiskWarning,
     newestSaleDueDate,
+    invariantError,
   };
 }

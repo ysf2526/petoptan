@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { formatCurrency, formatDate } from '@/utils/formatters';
-import { Customer, PaymentSchedule, Sale, Profile } from '@/types/database.types';
-import { buildConsolidatedPaymentPlan, calculateNetCustomerDebt, ConsolidatedInstallment } from '@/services/consolidatedPaymentPlanService';
+import { Customer, Profile, PaymentSchedule, Sale } from '@/types/database.types';
+import { calculateNetCustomerDebt } from '@/services/consolidatedPaymentPlanService';
 import {
   normalizeTurkishPhone,
   buildCustomerStatementMessage,
@@ -323,47 +323,20 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 </div>
               </div>
 
-              {/* Consolidated Payment Plan Table */}
-              <div>
-                <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-purple-600" />
-                  <span>GÜNCEL BİRLEŞİK CARİ ÖDEME PLANI</span>
+              {/* Net Debt Overview Card */}
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-slate-500 uppercase font-bold text-[9px] block">TOPLAM NET BORÇ</span>
+                  <span className={`text-base font-black ${currentDebt > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    {formatCurrency(currentDebt)}
+                  </span>
                 </div>
-
-                {(() => {
-                  const plan = buildConsolidatedPaymentPlan(customer, currentDebt, [], upcomingSchedules, customer?.weekly_payment_target);
-                  if (plan.installments.length === 0) {
-                    return (
-                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-500 italic text-center text-xs">
-                        Ödeme bekleyen aktif cari borç bulunmamaktadır.
-                      </div>
-                    );
-                  }
-                  return (
-                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-purple-600 text-white font-bold text-[11px] uppercase border-b border-purple-700">
-                          <tr>
-                            <th className="py-2 px-3">Hafta #</th>
-                            <th className="py-2 px-3">Tahmini Vade Tarihi</th>
-                            <th className="py-2 px-3 text-right">Taksit Tutarı</th>
-                            <th className="py-2 px-3 text-right">Kalan Borç Bakiyesi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 text-slate-800">
-                          {plan.installments.map((inst: ConsolidatedInstallment) => (
-                            <tr key={inst.weekIndex}>
-                              <td className="py-2 px-3 font-bold text-slate-900">{inst.weekIndex}. HAFTA</td>
-                              <td className="py-2 px-3 font-mono font-medium text-slate-700">{formatDate(inst.dueDate)}</td>
-                              <td className="py-2 px-3 text-right font-extrabold text-amber-600">{formatCurrency(inst.amount)}</td>
-                              <td className="py-2 px-3 text-right font-bold text-slate-800">{formatCurrency(inst.remainingBalance)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })()}
+                <div className="text-right">
+                  <span className="text-slate-500 uppercase font-bold text-[9px] block">DURUM</span>
+                  <span className={`font-extrabold text-xs ${currentDebt > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    {currentDebt > 0 ? 'Açık Borç Bakiyesi Var' : '✓ Borç Bulunmuyor'}
+                  </span>
+                </div>
               </div>
 
               {/* Last Sale Info */}

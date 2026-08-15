@@ -130,60 +130,19 @@ export function buildSupplierOffsetWhatsAppMessage(
 }
 
 /**
- * Builds standard Turkish WhatsApp text message for a Sale & Weekly Payment Schedule document.
+ * Builds standard Turkish WhatsApp text message for a Sale & Net Customer Debt.
  */
 export function buildSaleWhatsAppMessage(
   sale: Sale,
   items: SaleItem[],
-  schedules: PaymentSchedule[],
+  schedules?: PaymentSchedule[],
   netTotalDebt?: number,
   previousBalance?: number
 ): string {
   const saleDateFormatted = formatDate(sale.created_at);
   const totalStr = formatCurrency(sale.total_amount);
-  const paidStr = formatCurrency(sale.paid_amount || 0);
   const remainingStr = netTotalDebt !== undefined ? formatCurrency(netTotalDebt) : formatCurrency(sale.remaining_debt || 0);
   const prevBalStr = previousBalance !== undefined ? formatCurrency(previousBalance) : null;
-
-  let scheduleLines = '';
-  if (schedules && schedules.length > 0) {
-    scheduleLines = schedules
-      .map((s, idx) => {
-        const dStr = formatDate(s.due_date);
-        const aStr = formatCurrency(s.amount);
-        let statusMark = '';
-        if (s.status === 'paid') statusMark = ' ✓ (ÖDENDİ)';
-        else if (s.status === 'partially_paid') statusMark = ' (KISMİ ÖDENDİ)';
-        else if (s.status === 'overdue') statusMark = ' ⚠️ (GECİKTİ)';
-        return `${idx + 1}. Hafta (${dStr}) → ${aStr}${statusMark}`;
-      })
-      .join('\n');
-  } else if (sale.payment_type === 'vadeli' || sale.term_days > 0) {
-    const deliveryDateStr = sale.delivered_at || sale.created_at || new Date().toISOString();
-    const baseDate = new Date(deliveryDateStr);
-    const numWeeks = 4;
-    const debtToDistribute = netTotalDebt !== undefined ? netTotalDebt : (sale.remaining_debt || sale.total_amount);
-    const basePerWeek = Number((debtToDistribute / numWeeks).toFixed(2));
-    let remaining = debtToDistribute;
-    const lines: string[] = [];
-
-    for (let i = 1; i <= numWeeks; i++) {
-      const d = new Date(baseDate);
-      d.setDate(d.getDate() + i * 7);
-      const dStr = formatDate(d.toISOString().split('T')[0]);
-      let amt = basePerWeek;
-      if (i === numWeeks) {
-        amt = Number(remaining.toFixed(2));
-      } else {
-        remaining -= basePerWeek;
-      }
-      lines.push(`${i}. Hafta (${dStr}) → ${formatCurrency(Math.max(0, amt))}`);
-    }
-    scheduleLines = lines.join('\n');
-  } else {
-    scheduleLines = 'Peşin Satış (Taksit bulunmuyor)';
-  }
-
 
   return `Merhaba ${sale.customer_name},
 
@@ -194,10 +153,7 @@ Bugünkü ürün teslimatınıza ait satış ve güncel cari borç özet bilgile
 🛍️ Bugünkü Satış: ${totalStr}
 ${prevBalStr !== null ? `📊 Önceki Bakiye: ${prevBalStr}\n` : ''}🔴 GÜNCEL TOPLAM CARİ BORÇ: ${remainingStr}
 
-🗓️ Haftalık Ödeme Planınız:
-${scheduleLines}
-
-Ekli PDF belgenizde tüm detaylı ürün listesi ve cari hesabınız yer almaktadır.
+Ekli PDF belgenizde detaylı ürün listesi ve güncel cari hesabınız yer almaktadır.
 
 Teşekkür ederiz.`;
 }
@@ -208,36 +164,24 @@ Teşekkür ederiz.`;
 export function buildCustomerStatementMessage(
   customerName: string,
   totalDebt: number,
-  dueThisWeek: number,
-  overdueDebt: number,
-  upcomingSchedules: PaymentSchedule[],
+  dueThisWeek?: number,
+  overdueDebt?: number,
+  upcomingSchedules?: PaymentSchedule[],
   lastPurchaseDate?: string | null,
   lastPurchaseAmount?: number | null
 ): string {
-  let scheduleText = 'Yaklaşan ödemeniz bulunmuyor.';
-  if (upcomingSchedules && upcomingSchedules.length > 0) {
-    scheduleText = upcomingSchedules
-      .slice(0, 4)
-      .map((s) => `${formatDate(s.due_date)} → ${formatCurrency(s.amount)}`)
-      .join('\n');
-  }
-
   const lastPurchaseStr = lastPurchaseDate
     ? `${formatDate(lastPurchaseDate)} (${formatCurrency(lastPurchaseAmount || 0)})`
     : 'Kayıt yok';
 
   return `Merhaba ${customerName},
 
-Güncel cari hesap ve ödeme planı bilgilendirme özetinizi aşağıda paylaşıyoruz.
+Güncel cari hesap bilgilendirme özetinizi aşağıda paylaşıyoruz.
 
 🔴 Toplam Cari Borç: ${formatCurrency(totalDebt)}
-📅 Bu Hafta Ödenecek: ${formatCurrency(dueThisWeek)}
-⚠️ Geciken Borç: ${formatCurrency(overdueDebt)}
-
-🗓️ Yaklaşan Ödemeleriniz:
-${scheduleText}
-
 📦 Son Alış Bilgisi: ${lastPurchaseStr}
+
+Ekli PDF ekstrenizde cari hesap dökümünüz yer almaktadır.
 
 Teşekkür ederiz.`;
 }
@@ -266,7 +210,6 @@ ${notes ? `\n📌 Sipariş Notu: ${notes}\n` : ''}
 
 Teşekkür ederiz.`;
 }
-
 
 /**
  * Opens WhatsApp Web / Deep Link in a new tab.
@@ -353,9 +296,6 @@ export async function getWhatsAppAuditStatusesForPayments(
   }
 }
 
-/**
- * Future WhatsApp Business Cloud API Integration Layer (Abstraction)
- */
 export class WhatsAppService {
   static async sendWhatsAppMessage(toPhone: string, text: string): Promise<{ success: boolean; messageId?: string }> {
     console.log('[WhatsAppService] sendWhatsAppMessage stub called', { toPhone, text });

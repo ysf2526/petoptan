@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { calculateSmartPaymentPlan } from '@/services/smartPaymentEngine';
+import { calculateCustomerPaymentDelay } from '@/services/customerOverdueService';
 import { formatCurrency, getISOYearMonth } from '@/utils/formatters';
 
 export type PriorityLevel = 'CRITICAL' | 'IMPORTANT' | 'WARNING' | 'OPPORTUNITY';
@@ -272,6 +273,56 @@ export async function calculateBusinessAssistantInsights(): Promise<BusinessAssi
             whatsappMessage: waMsg,
           },
           timeframe: 'WEEK',
+        });
+      }
+    }
+  });
+
+  // ----------------------------------------------------
+  // MODULE 4.5: 7-DAY PAYMENT OVERDUE ANALYSIS (7+ GÜN ÖDEME YAPMAYAN MÜŞTERİLER)
+  // ----------------------------------------------------
+  const { data: cLedgers } = await supabase
+    .from('customer_ledger')
+    .select('customer_id, balance')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+
+  const cDebtMap: Record<string, number> = {};
+  cLedgers?.forEach((l) => {
+    if (cDebtMap[l.customer_id] === undefined) {
+      cDebtMap[l.customer_id] = Number(l.balance || 0);
+    }
+  });
+
+  const { data: allP } = await supabase.from('payments').select('*').is('deleted_at', null);
+  const { data: allS } = await supabase.from('sales').select('*').is('deleted_at', null);
+
+  const overdueList: any[] = [];
+  customersList?.forEach((c) => {
+    const debt = cDebtMap[c.id] || 0;
+    if (debt > 0) {
+      const res = calculateCustomerPaymentDelay(c as any, debt, (allP as any) || [], (allS as any) || []);
+      if (res.status !== 'normal') {
+        overdueList.push(res);
+        const waText = `Merhaba ${c.business_name}, hesabınızda ${formatCurrency(debt)} güncel cari borç bakiyesi bulunmaktadır. Son ödemenizin üzerinden ${res.daysSinceLastPayment} gün geçmiştir. Ödeme durumunuzla ilgili bilgi vermenizi rica ederiz. Teşekkürler.`;
+
+        insights.push({
+          id: `cust-overdue-${c.id}`,
+          category: 'CUSTOMER',
+          priority: res.status === 'critical_14_days' ? 'CRITICAL' : 'IMPORTANT',
+          title: `🔴 ${c.business_name} — ${res.daysSinceLastPayment} Gündür Ödeme Yok`,
+          description: `Güncel cari borç: ${formatCurrency(debt)}. Son ödeme/teslimat tarihinden bu yana ${res.daysSinceLastPayment} gündür tahsilat yapılmadı.`,
+          whyExplanation: `Müşteri borcu 0 TL olmadıkça takip edilir. 7+ gün gecikmeler sarı/kırmızı alarm verir.`,
+          metricPrimary: formatCurrency(debt),
+          metricSecondary: `${res.daysSinceLastPayment} Gün`,
+          actionType: 'WHATSAPP_CUSTOMER',
+          actionPayload: {
+            customerId: c.id,
+            customerName: c.business_name,
+            customerPhone: c.phone,
+            whatsappMessage: waText,
+          },
+          timeframe: 'TODAY',
         });
       }
     }

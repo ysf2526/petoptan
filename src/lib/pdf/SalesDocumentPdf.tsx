@@ -2,7 +2,6 @@ import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
 import { Sale, SaleItem, Customer, Profile } from '@/types/database.types';
 import { formatCurrency, formatDate } from '@/utils/formatters';
-import { ConsolidatedInstallment } from '@/services/consolidatedPaymentPlanService';
 
 // Register Turkish-compatible Roboto font
 Font.register({
@@ -107,8 +106,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#cbd5e1',
     borderRadius: 4,
-    padding: 6,
-    marginBottom: 10,
+    padding: 8,
+    marginBottom: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     textAlign: 'center',
@@ -125,7 +124,7 @@ const styles = StyleSheet.create({
   summaryVal: {
     fontSize: 10,
     fontWeight: 'bold',
-    marginTop: 1,
+    marginTop: 2,
   },
 
   // 4. Products Table
@@ -138,7 +137,7 @@ const styles = StyleSheet.create({
   },
   table: {
     width: '100%',
-    marginBottom: 10,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 4,
@@ -164,7 +163,7 @@ const styles = StyleSheet.create({
   tFoot: {
     backgroundColor: '#f8fafc',
     flexDirection: 'row',
-    paddingVertical: 4,
+    paddingVertical: 5,
     paddingHorizontal: 6,
     fontSize: 8,
     fontWeight: 'bold',
@@ -179,23 +178,14 @@ const styles = StyleSheet.create({
   colPrice: { flex: 1.5, textAlign: 'right' },
   colTotal: { flex: 1.5, textAlign: 'right' },
 
-  // 5. Payment Schedule Table
-  scheduleStatus: {
-    fontSize: 7.5,
-    fontWeight: 'bold',
-    paddingVertical: 1,
-    paddingHorizontal: 4,
-    borderRadius: 2,
-    textAlign: 'center',
-  },
-
-  // 6. Disclaimer & Footer
+  // 5. Disclaimer & Footer
   warningBox: {
     backgroundColor: '#fffbeb',
     borderWidth: 1,
     borderColor: '#fde68a',
     borderRadius: 4,
     padding: 6,
+    marginTop: 10,
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -229,7 +219,6 @@ interface SalesDocumentPdfProps {
   currentSaleAmount: number;
   paymentMade: number;
   netTotalDebt: number;
-  consolidatedInstallments: ConsolidatedInstallment[];
 }
 
 export const SalesDocumentPdf: React.FC<SalesDocumentPdfProps> = ({
@@ -241,7 +230,6 @@ export const SalesDocumentPdf: React.FC<SalesDocumentPdfProps> = ({
   currentSaleAmount,
   paymentMade,
   netTotalDebt,
-  consolidatedInstallments,
 }) => {
   const businessTitle = profile?.business_name?.trim() || 'PETSHOP TOPTAN';
   const businessPhone = profile?.phone?.trim() || '0532 000 00 00';
@@ -254,18 +242,18 @@ export const SalesDocumentPdf: React.FC<SalesDocumentPdfProps> = ({
         <View style={styles.header}>
           <View>
             <Text style={styles.businessTitle}>{businessTitle}</Text>
-            <Text style={styles.businessSubtitle}>Toptan Pet Ürünleri & Cari Yönetimi</Text>
+            <Text style={styles.businessSubtitle}>Toptan Pet Ürünleri & Cari Hesap Ekstresi</Text>
             <Text style={styles.contactText}>
               Tel: {businessPhone} | Adres: {businessAddress}
             </Text>
           </View>
 
           <View style={styles.docBadge}>
-            <Text style={styles.docTitle}>SATIŞ & CARİ EKSTRE BELGESİ</Text>
+            <Text style={styles.docTitle}>SATIŞ & CARİ HESAP BELGESİ</Text>
             <Text style={styles.docMeta}>Satış No: {sale.sale_number}</Text>
             <Text style={styles.docMeta}>Tarih: {formatDate(sale.created_at)}</Text>
             <Text style={styles.docMeta}>
-              Vade Tipi: {sale.payment_type === 'pesin' ? 'Peşin Satış' : `Vadeli (${sale.term_days || 30} Gün)`}
+              Ödeme Tipi: {sale.payment_type === 'pesin' ? 'Peşin Satış' : 'Açık Hesap (Cari)'}
             </Text>
           </View>
         </View>
@@ -312,7 +300,7 @@ export const SalesDocumentPdf: React.FC<SalesDocumentPdfProps> = ({
         </View>
 
         {/* 4. Financial Accounting Strip (CARİ DURUM ÖZETİ) */}
-        <Text style={styles.sectionHeader}>GÜNCEL CARİ DURUM ÖZETİ</Text>
+        <Text style={styles.sectionHeader}>GÜNCEL CARİ HESAP ÖZETİ</Text>
         <View style={styles.summaryStrip}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>ÖNCEKİ BAKİYE</Text>
@@ -327,51 +315,20 @@ export const SalesDocumentPdf: React.FC<SalesDocumentPdfProps> = ({
             <Text style={[styles.summaryVal, { color: '#15803d' }]}>{formatCurrency(paymentMade)}</Text>
           </View>
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryLabel, { color: '#b45309' }]}>GÜNCEL TOPLAM CARİ BORÇ (KALAN BORÇ)</Text>
+            <Text style={[styles.summaryLabel, { color: '#b45309' }]}>GÜNCEL TOPLAM CARİ BORÇ</Text>
             <Text style={[styles.summaryVal, { color: '#d97706', fontSize: 11 }]}>{formatCurrency(netTotalDebt)}</Text>
           </View>
         </View>
 
-        {/* 5. Weekly Consolidated Payment Schedule Table */}
-        <Text style={styles.sectionHeader}>GÜNCEL BİRLEŞİK CARİ ÖDEME PLANI ({consolidatedInstallments.length} TAKSİT)</Text>
-        <View style={styles.table}>
-          <View style={styles.tHead}>
-            <Text style={{ flex: 1.5 }}>Hafta #</Text>
-            <Text style={{ flex: 2.5 }}>Tahmini Vade Tarihi</Text>
-            <Text style={{ flex: 2.5, textAlign: 'right' }}>Taksit Tutarı</Text>
-            <Text style={{ flex: 3, textAlign: 'right' }}>Kalan Borç Bakiyesi</Text>
-          </View>
-          {consolidatedInstallments.length === 0 ? (
-            <View style={styles.tRow}>
-              <Text style={{ flex: 9.5, textAlign: 'center', color: '#15803d', fontWeight: 'bold' }}>
-                ✓ Müşterinin ödenmemiş aktif cari borcu bulunmamaktadır.
-              </Text>
-            </View>
-          ) : (
-            consolidatedInstallments.map((inst) => (
-              <View key={inst.weekIndex} style={styles.tRow}>
-                <Text style={{ flex: 1.5, fontWeight: 'bold' }}>{inst.weekIndex}. HAFTA</Text>
-                <Text style={{ flex: 2.5 }}>{formatDate(inst.dueDate)}</Text>
-                <Text style={{ flex: 2.5, textAlign: 'right', fontWeight: 'bold', color: '#b45309' }}>
-                  {formatCurrency(inst.amount)}
-                </Text>
-                <Text style={{ flex: 3, textAlign: 'right', fontWeight: 'bold', color: '#0f172a' }}>
-                  {formatCurrency(inst.remainingBalance)}
-                </Text>
-              </View>
-            ))
-          )}
-        </View>
-
-        {/* 6. Legal Disclaimer */}
+        {/* 5. Legal Disclaimer */}
         <View style={styles.warningBox}>
           <Text style={styles.warningText}>
-            Bu belge güncel cari hesap ve haftalık ödeme planı bilgilendirmesi amacıyla oluşturulmuştur.
+            Bu belge güncel cari hesap durum bilgilendirmesi amacıyla oluşturulmuştur.
           </Text>
           <Text style={styles.warningBold}>RESMİ FATURA / E-ARŞİV FATURA YERİNE GEÇMEZ.</Text>
         </View>
 
-        {/* 7. Footer */}
+        {/* 6. Footer */}
         <View style={styles.footer}>
           <Text>📍 {businessTitle}</Text>
           <Text>🌐 www.petoptan.com</Text>

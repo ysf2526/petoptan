@@ -436,88 +436,24 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
                 </div>
               </div>
 
-              {/* 4. Consolidated Payment Schedule Table */}
-              <div>
-                <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-blue-600" />
-                  <span>GÜNCEL BİRLEŞİK CARİ ÖDEME PLANI</span>
-                </div>
-
-                {(() => {
-                  const plan = buildConsolidatedPaymentPlan(
-                    customer,
-                    netTotalDebt,
-                    allCustomerSales,
-                    allCustomerSchedules,
-                    customer?.weekly_payment_target
-                  );
-
-                  if (plan.installments.length === 0) {
-                    return (
-                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 font-bold text-center text-xs">
-                        ✓ Müşterinin ödenmemiş aktif cari borcu bulunmamaktadır.
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-blue-600 text-white font-bold text-[11px] uppercase border-b border-blue-700">
-                          <tr>
-                            <th className="py-2 px-3">Hafta #</th>
-                            <th className="py-2 px-3">Tahmini Vade Tarihi</th>
-                            <th className="py-2 px-3 text-right">Taksit Tutarı</th>
-                            <th className="py-2 px-3 text-right">Kalan Borç Bakiyesi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 text-slate-800">
-                          {plan.installments.map((inst) => (
-                            <tr key={inst.weekIndex}>
-                              <td className="py-2 px-3 font-bold text-slate-900">{inst.weekIndex}. HAFTA</td>
-                              <td className="py-2 px-3 font-mono font-medium text-slate-700">{formatDate(inst.dueDate)}</td>
-                              <td className="py-2 px-3 text-right font-extrabold text-amber-600">{formatCurrency(inst.amount)}</td>
-                              <td className="py-2 px-3 text-right font-bold text-slate-900">{formatCurrency(inst.remainingBalance)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* 5. Cari Summary Strip */}
+              {/* 4. Cari Summary Strip */}
               <div className="bg-blue-50/40 border border-blue-100 p-3.5 rounded-xl flex items-center justify-between text-xs">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
                     <Clock className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-slate-900 text-sm">GÜNCEL CARİ ÖZETİ</h4>
-                    <p className="text-[11px] text-slate-500 font-medium">Haftalık Birleşik Ödeme Planı</p>
+                    <h4 className="font-extrabold text-slate-900 text-sm">GÜNCEL CARİ HESAP ÖZETİ</h4>
+                    <p className="text-[11px] text-slate-500 font-medium">Teslim Edilmiş Satışlar & Tahsilat Bakiye Özeti</p>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-6 text-right">
-                  <div>
-                    <span className="text-[10px] text-slate-500 font-medium block">Bugünkü Satış</span>
-                    <span className="font-bold text-blue-600 text-sm">{formatCurrency(currentSaleAmount)}</span>
-                  </div>
-
-                  <div className="border-l border-slate-200 pl-6">
-                    <span className="text-[10px] text-slate-500 font-medium block">Önceki Bakiye</span>
-                    <span className="font-bold text-slate-700 text-sm">{formatCurrency(previousBalance)}</span>
-                  </div>
-
-                  <div className="border-l border-slate-200 pl-6">
-                    <span className="text-[10px] text-slate-500 font-medium block">Güncel Cari Borç</span>
-                    <span className="font-black text-amber-600 text-sm">{formatCurrency(netTotalDebt)}</span>
-                  </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">GÜNCEL NET BORÇ</span>
+                  <span className="text-base font-black text-amber-600 font-mono">{formatCurrency(netTotalDebt)}</span>
                 </div>
               </div>
 
-              {/* 6. Warning Disclaimer Box */}
+              {/* 5. Warning Disclaimer Box */}
               <div className="bg-amber-50/80 border border-amber-200/80 p-3 rounded-xl flex items-center gap-3 text-xs">
                 <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 font-bold text-lg">
                   <AlertTriangle className="w-5 h-5 text-amber-600" />

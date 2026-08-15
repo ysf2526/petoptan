@@ -6,11 +6,8 @@ import { formatCurrency, formatDate, formatDateTime } from '@/utils/formatters';
 import { Customer, CustomerLedger, Sale, PaymentSchedule, PreOrder, PRE_ORDER_STATUS_MAP } from '@/types/database.types';
 import { preOrderService } from '@/services/preOrderService';
 import { LayoutContextType } from '@/components/layout/Layout';
-import {
-  buildConsolidatedPaymentPlan,
-  calculateNetCustomerDebt,
-  ConsolidatedPaymentPlanSummary,
-} from '@/services/consolidatedPaymentPlanService';
+import { calculateNetCustomerDebt } from '@/services/consolidatedPaymentPlanService';
+import { calculateCustomerPaymentDelay } from '@/services/customerOverdueService';
 import {
   Users,
   ArrowLeft,
@@ -205,11 +202,6 @@ export const CustomerDetail: React.FC = () => {
     return () => window.removeEventListener('refresh-data', handleRefresh);
   }, [fetchCustomerDetails]);
 
-  // Consolidated Dynamic Payment Plan Calculation
-  const consolidatedPlan: ConsolidatedPaymentPlanSummary = useMemo(() => {
-    return buildConsolidatedPaymentPlan(customer, currentDebt, salesList, paymentSchedules, weeklyTargetInput);
-  }, [customer, currentDebt, salesList, paymentSchedules, weeklyTargetInput]);
-
   const handleSaveWeeklyTarget = async () => {
     if (!id) return;
     setSavingTarget(true);
@@ -324,124 +316,92 @@ export const CustomerDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* CONSOLIDATED CARİ OVERVIEW & DYNAMIC PAYMENT PLAN SECTION */}
-      <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-5 shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-600/20 border border-brand-500/30 flex items-center justify-center text-brand-400 shrink-0">
-              <Target className="w-5 h-5" />
+      {/* 🔴 7 GÜNLÜK ÖDEME GECİKMESİ VE CARİ HESAP ÖZETİ SECTION */}
+      {(() => {
+        const delayRes = calculateCustomerPaymentDelay(customer, currentDebt, (ledgerEntries as any) || [], salesList || []);
+        return (
+          <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                    delayRes.status === 'critical_14_days'
+                      ? 'bg-rose-950 text-rose-400 border border-rose-800'
+                      : delayRes.status === 'warning_7_days'
+                      ? 'bg-amber-950 text-amber-400 border border-amber-800'
+                      : 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                  }`}
+                >
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                    <span>GÜNCEL CARİ HESAP VE GECİKME TAKİBİ</span>
+                    {delayRes.badgeLabel && (
+                      <span
+                        className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full ${
+                          delayRes.status === 'critical_14_days'
+                            ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                            : 'bg-amber-950 text-amber-300 border border-amber-800'
+                        }`}
+                      >
+                        {delayRes.badgeLabel}
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Sistem 7 gün boyunca ödeme yapmayan borçlu müşterileri otomatik olarak uyarır.
+                  </p>
+                </div>
+              </div>
             </div>
-            <div>
-              <h3 className="text-base font-bold text-white tracking-tight">
-                GÜNCEL CARİ BORÇ VE BİRLEŞİK ÖDEME PLANI
-              </h3>
-              <p className="text-xs text-slate-400">
-                Müşterinin tüm vadeli satışları tek cari borç ödeme planında birleştirilmiştir.
-              </p>
-            </div>
-          </div>
 
-          {/* Haftalık Ödeme Hedefi Düzenleyici */}
-          <div className="flex items-center gap-2 bg-slate-950 p-2 rounded-xl border border-slate-800">
-            <span className="text-xs text-slate-400 font-medium whitespace-nowrap">Haftalık Ödeme Hedefi:</span>
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                step="500"
-                min={0}
-                value={weeklyTargetInput}
-                onChange={(e) => setWeeklyTargetInput(Number(e.target.value))}
-                className="w-28 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-extrabold text-white text-right outline-none focus:border-brand-500"
-              />
-              <span className="text-xs text-slate-400 font-bold">TL</span>
-              <button
-                type="button"
-                onClick={handleSaveWeeklyTarget}
-                disabled={savingTarget}
-                className="p-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs transition-all flex items-center gap-1 disabled:opacity-50 ml-1"
-                title="Haftalık Hedefi Kaydet"
+            {/* Delay Warning Banner */}
+            {delayRes.warningMessage && (
+              <div
+                className={`p-4 rounded-xl border text-xs flex items-start gap-3 ${
+                  delayRes.status === 'critical_14_days'
+                    ? 'bg-rose-950/60 border-rose-800 text-rose-200'
+                    : 'bg-amber-950/60 border-amber-800 text-amber-200'
+                }`}
               >
-                {savingTarget ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              </button>
+                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 animate-bounce" />
+                <div>
+                  <span className="font-extrabold text-sm block">{delayRes.warningMessage}</span>
+                  <p className="mt-1 leading-relaxed text-[11px] opacity-90">
+                    Bu müşterinin son ödeme/teslimat tarihinden beri {delayRes.daysSinceLastPayment} gündür tahsilat yapılmamıştır. Müşteriden ödeme alınması gerekmektedir.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs">
+              <div>
+                <span className="text-slate-500 block">Güncel Cari Borç</span>
+                <span className="text-base font-black text-amber-400 block mt-0.5">{formatCurrency(currentDebt)}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block">Son Ödeme Tarihi</span>
+                <span className="text-base font-bold text-white block mt-0.5">
+                  {lastPaymentDate ? formatDate(lastPaymentDate) : 'Henüz Ödeme Yok'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block">Ödeme Yapılmayan Süre</span>
+                <span className="text-base font-bold text-brand-400 block mt-0.5">
+                  {currentDebt > 0 ? `${delayRes.daysSinceLastPayment} Gün` : 'Borç 0 TL'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block">Son Satış Tarihi</span>
+                <span className="text-base font-bold text-slate-300 block mt-0.5">
+                  {lastPurchaseDate ? formatDate(lastPurchaseDate) : 'Henüz Satış Yok'}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Dynamic Plan Summary Metrics */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs">
-          <div>
-            <span className="text-slate-500 block">Toplam Cari Borç</span>
-            <span className="text-base font-black text-amber-400 block mt-0.5">{formatCurrency(currentDebt)}</span>
-          </div>
-
-          <div>
-            <span className="text-slate-500 block">Haftalık Taksit</span>
-            <span className="text-base font-bold text-white block mt-0.5">{formatCurrency(consolidatedPlan.weeklyTarget)}</span>
-          </div>
-
-          <div>
-            <span className="text-slate-500 block">Tahmini Kapanış</span>
-            <span className="text-base font-bold text-brand-400 block mt-0.5">{consolidatedPlan.estimatedWeeksToClose} Hafta</span>
-          </div>
-
-          <div>
-            <span className="text-slate-500 block">Aktif Vadeli Satış Sayısı</span>
-            <span className="text-base font-bold text-slate-300 block mt-0.5">{activeSalesCount} Satış</span>
-          </div>
-        </div>
-
-        {/* Term Risk Warning (If Applicable) */}
-        {consolidatedPlan.termRiskWarning && (
-          <div className="bg-amber-950/60 border border-amber-800/80 p-4 rounded-xl text-xs text-amber-200 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5 animate-bounce" />
-            <div className="space-y-1">
-              <span className="font-bold text-white block text-sm">VADE RİSKİ BİLGİLENDİRMESİ</span>
-              <p className="leading-relaxed">{consolidatedPlan.termRiskWarning}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Consolidated Unified Installment Table */}
-        <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950">
-          {consolidatedPlan.installments.length === 0 ? (
-            <div className="p-8 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-1">
-              <CheckCircle2 className="w-6 h-6 text-emerald-400 mb-1" />
-              <span className="font-bold text-emerald-300">Müşterinin ödenmemiş cari borcu bulunmamaktadır.</span>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-900 text-slate-400 font-semibold border-b border-slate-800 uppercase tracking-wider">
-                  <tr>
-                    <th className="p-3">Hafta #</th>
-                    <th className="p-3">Tahmini Ödeme Tarihi</th>
-                    <th className="p-3 text-right">Taksit Tutarı</th>
-                    <th className="p-3 text-right">Taksit Sonrası Kalan Borç</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 text-slate-200">
-                  {consolidatedPlan.installments.map((inst) => (
-                    <tr key={inst.weekIndex} className="hover:bg-slate-900/60">
-                      <td className="p-3 font-bold text-slate-300">
-                        {inst.weekIndex}. Hafta
-                      </td>
-                      <td className="p-3 font-mono text-slate-400">
-                        {formatDate(inst.dueDate)}
-                      </td>
-                      <td className="p-3 text-right font-extrabold text-amber-400">
-                        {formatCurrency(inst.amount)}
-                      </td>
-                      <td className="p-3 text-right font-bold text-slate-300">
-                        {formatCurrency(inst.remainingBalance)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
+        );
+      })()}
 
       {/* CUSTOMER CONTACT & DATES CARD */}
       <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">

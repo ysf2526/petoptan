@@ -3,9 +3,10 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { parseErrorMessage } from '@/utils/errors';
 import { formatCurrency, formatDateTime, formatDate } from '@/utils/formatters';
-import { Sale } from '@/types/database.types';
+import { Sale, Customer, Profile, SaleItem, PaymentSchedule } from '@/types/database.types';
 import { X, CheckCircle2, Truck, Loader2, FileText, MessageSquare, Calendar, ChevronRight } from 'lucide-react';
-import { openWhatsAppWeb, buildSaleWhatsAppMessage } from '@/services/whatsappService';
+import { normalizeTurkishPhone, buildSaleWhatsAppMessage, logWhatsAppShareAttempt } from '@/services/whatsappService';
+import { shareOrDownloadSalesPdf, downloadPdfFile } from '@/services/pdfService';
 
 interface ConfirmDeliveryModalProps {
   isOpen: boolean;
@@ -89,6 +90,8 @@ export const ConfirmDeliveryModal: React.FC<ConfirmDeliveryModalProps> = ({
 
 
   const handleSendWhatsApp = async () => {
+    if (!sale) return;
+
     try {
       // 1. Mark whatsapp status in DB
       await supabase.rpc('mark_sale_whatsapp_sent_transaction', {
@@ -97,37 +100,77 @@ export const ConfirmDeliveryModal: React.FC<ConfirmDeliveryModalProps> = ({
 
       setDeliveryResult((prev) => ({ ...prev, whatsapp_sent: true }));
 
-      // 2. Fetch customer phone
+      // 2. Fetch customer for phone
       const { data: custData } = await supabase
         .from('customers')
-        .select('phone')
+        .select('*')
         .eq('id', sale.customer_id)
         .maybeSingle();
 
-      const phone = custData?.phone;
-      if (!phone) {
-        showError('Müşteriye ait telefon numarası bulunamadı.');
+      const customer = custData as Customer | null;
+      const phone = customer?.phone || '';
+      const norm = normalizeTurkishPhone(phone);
+
+      if (!norm.isValid) {
+        showError('Müşteriye ait geçerli bir telefon numarası bulunamadı.');
         return;
       }
 
-      // 3. Fetch payment schedules for this sale
+      // 3. Fetch profile for header
+      const { data: profData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', sale.owner_id)
+        .maybeSingle();
+      const profile = profData as Profile | null;
+
+      // 4. Fetch sale items
+      const { data: itemsData } = await supabase
+        .from('sale_items')
+        .select('*')
+        .eq('sale_id', sale.id)
+        .is('deleted_at', null);
+      const items = (itemsData as SaleItem[]) || [];
+
+      // 5. Fetch ALL customer active unpaid payment schedules for consolidation
       const { data: schedData } = await supabase
         .from('payment_schedules')
         .select('*')
-        .eq('sale_id', sale.id)
+        .eq('customer_id', sale.customer_id)
         .is('deleted_at', null)
         .order('due_date', { ascending: true });
+      const allCustomerSchedules = (schedData as PaymentSchedule[]) || [];
 
-      const msg = buildSaleWhatsAppMessage(
+      // 6. Build WhatsApp text using consolidated plan
+      const messageText = buildSaleWhatsAppMessage(
         sale,
-        [],
-        schedData || [],
+        items,
+        allCustomerSchedules,
         deliveryResult.net_customer_debt || sale.total_amount
       );
 
-      openWhatsAppWeb(phone, msg);
-      showSuccess('WhatsApp mesajı açıldı ve gönderim durumu kaydedildi.');
-    } catch (err) {
+      await logWhatsAppShareAttempt('sales', sale.id, norm.normalized, {
+        sale_number: sale.sale_number,
+        customer_name: sale.customer_name,
+      });
+
+      // 7. Generate genuine PDF File, trigger device download AND WhatsApp share
+      const { method } = await shareOrDownloadSalesPdf(
+        sale,
+        items,
+        allCustomerSchedules,
+        customer,
+        profile,
+        norm.normalized,
+        messageText
+      );
+
+      if (method === 'whatsapp_web_download') {
+        showSuccess('Cari Hesap PDF belgesi cihazınıza indirildi! WhatsApp sohbetine dosya olarak ekleyebilirsiniz.');
+      } else {
+        showSuccess('WhatsApp PDF paylaşımı başlatıldı.');
+      }
+    } catch (err: any) {
       console.error(err);
       showError(parseErrorMessage(err));
     }
