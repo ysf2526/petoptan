@@ -139,10 +139,9 @@ export const Suppliers: React.FC = () => {
             const totPurch = Math.max(allPurchTotal, credPurch);
             const cashPurch = Math.max(0, totPurch - credPurch);
 
-            // Latest balance is balance field of first row, or fail-safe net balance
-            const latestBalance = lData?.[0]?.balance ? Number(lData[0].balance) : 0;
-            const calculatedNetBalance = Math.max(0, credPurch - (totPay + totOff));
-            const realBalance = latestBalance > 0 ? latestBalance : calculatedNetBalance;
+            // Net remaining debt is mathematically Total Credit Purchases + Adjustments - (Payments + Offsets)
+            const realBalance = Math.max(0, credPurch - (totPay + totOff));
+
 
             return {
               ...sup,

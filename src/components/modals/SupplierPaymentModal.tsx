@@ -105,8 +105,8 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
               }
             });
 
-            const latestBal = Number(lData?.[0]?.balance || 0);
-            const bal = latestBal > 0 ? latestBal : Math.max(0, credPurch - totDeb);
+            const bal = Math.max(0, credPurch - totDeb);
+
 
             return {
               ...sup,

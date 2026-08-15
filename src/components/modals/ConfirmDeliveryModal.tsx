@@ -110,13 +110,20 @@ export const ConfirmDeliveryModal: React.FC<ConfirmDeliveryModalProps> = ({
         return;
       }
 
+      // 3. Fetch payment schedules for this sale
+      const { data: schedData } = await supabase
+        .from('payment_schedules')
+        .select('*')
+        .eq('sale_id', sale.id)
+        .is('deleted_at', null)
+        .order('due_date', { ascending: true });
+
       const msg = buildSaleWhatsAppMessage(
         sale,
         [],
-        [],
+        schedData || [],
         deliveryResult.net_customer_debt || sale.total_amount
       );
-
 
       openWhatsAppWeb(phone, msg);
       showSuccess('WhatsApp mesajı açıldı ve gönderim durumu kaydedildi.');
@@ -189,29 +196,18 @@ export const ConfirmDeliveryModal: React.FC<ConfirmDeliveryModalProps> = ({
               </span>
             </div>
 
-            {/* Document & WhatsApp Action Buttons */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (onOpenDocument) onOpenDocument(sale);
-                  else showSuccess('PDF Oluşturuluyor...');
-                }}
-                className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 px-4 rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition-all active:scale-98"
-              >
-                <FileText className="w-4 h-4 text-brand-400" />
-                <span>📄 PDF Belgesi Önizle</span>
-              </button>
-
+            {/* Single Action Button */}
+            <div className="pt-2">
               <button
                 type="button"
                 onClick={handleSendWhatsApp}
-                className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-black py-3 px-4 rounded-xl shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all active:scale-98"
+                className="w-full bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black py-3.5 px-4 rounded-xl shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2.5 text-sm transition-all active:scale-98 border border-emerald-400/30"
               >
-                <MessageSquare className="w-4 h-4" />
-                <span>💬 WhatsApp'tan Gönder</span>
+                <MessageSquare className="w-5 h-5 text-emerald-100" />
+                <span>💬 WhatsApp'tan PDF ve Mesaj Gönder</span>
               </button>
             </div>
+
 
             <div className="pt-2 text-center">
               <button

@@ -148,19 +148,42 @@ export function buildSaleWhatsAppMessage(
   let scheduleLines = '';
   if (schedules && schedules.length > 0) {
     scheduleLines = schedules
-      .map((s) => {
+      .map((s, idx) => {
         const dStr = formatDate(s.due_date);
         const aStr = formatCurrency(s.amount);
         let statusMark = '';
         if (s.status === 'paid') statusMark = ' ✓ (ÖDENDİ)';
         else if (s.status === 'partially_paid') statusMark = ' (KISMİ ÖDENDİ)';
         else if (s.status === 'overdue') statusMark = ' ⚠️ (GECİKTİ)';
-        return `${dStr} → ${aStr}${statusMark}`;
+        return `${idx + 1}. Hafta (${dStr}) → ${aStr}${statusMark}`;
       })
       .join('\n');
+  } else if (sale.payment_type === 'vadeli' || sale.term_days > 0) {
+    const deliveryDateStr = sale.delivered_at || sale.created_at || new Date().toISOString();
+    const baseDate = new Date(deliveryDateStr);
+    const numWeeks = 4;
+    const debtToDistribute = netTotalDebt !== undefined ? netTotalDebt : (sale.remaining_debt || sale.total_amount);
+    const basePerWeek = Number((debtToDistribute / numWeeks).toFixed(2));
+    let remaining = debtToDistribute;
+    const lines: string[] = [];
+
+    for (let i = 1; i <= numWeeks; i++) {
+      const d = new Date(baseDate);
+      d.setDate(d.getDate() + i * 7);
+      const dStr = formatDate(d.toISOString().split('T')[0]);
+      let amt = basePerWeek;
+      if (i === numWeeks) {
+        amt = Number(remaining.toFixed(2));
+      } else {
+        remaining -= basePerWeek;
+      }
+      lines.push(`${i}. Hafta (${dStr}) → ${formatCurrency(Math.max(0, amt))}`);
+    }
+    scheduleLines = lines.join('\n');
   } else {
     scheduleLines = 'Peşin Satış (Taksit bulunmuyor)';
   }
+
 
   return `Merhaba ${sale.customer_name},
 
