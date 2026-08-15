@@ -87,11 +87,8 @@ export const Layout: React.FC = () => {
       <NewSaleModal
         isOpen={newSaleOpen}
         onClose={() => setNewSaleOpen(false)}
-        onSuccess={(createdSaleId) => {
+        onSuccess={() => {
           window.dispatchEvent(new Event('refresh-data'));
-          if (createdSaleId) {
-            openSaleDocumentModal(createdSaleId);
-          }
         }}
       />
 

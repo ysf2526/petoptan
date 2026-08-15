@@ -170,6 +170,11 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
   const handleWhatsAppSend = async () => {
     if (!sale) return;
 
+    if (sale.order_status !== 'delivered' || !sale.delivered_at) {
+      showError('⚠️ Ürün henüz müşteriye fiilen teslim edilmediği için PDF ve WhatsApp paylaşımı kapalıdır. Lütfen önce siparişi [✅ TESLİM EDİLDİ] olarak işaretleyiniz.');
+      return;
+    }
+
     const phoneToUse = customer?.phone || '';
     const norm = normalizeTurkishPhone(phoneToUse);
 
@@ -184,7 +189,6 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
       });
 
       const messageText = buildSaleWhatsAppMessage(sale, items, schedules, netTotalDebt, previousBalance);
-
 
       await logWhatsAppShareAttempt('sales', sale.id, norm.normalized, {
         sale_number: sale.sale_number,
@@ -213,11 +217,18 @@ export const SaleDocumentModal: React.FC<SaleDocumentModalProps> = ({
 
   const handleDownloadPdfDirect = async () => {
     if (!sale) return;
+
+    if (sale.order_status !== 'delivered' || !sale.delivered_at) {
+      showError('⚠️ Ürün henüz müşteriye fiilen teslim edilmediği için PDF belgesi indirilemez. Lütfen önce [✅ TESLİM EDİLDİ] olarak onaylayınız.');
+      return;
+    }
+
     try {
       const pdfFile = await generateSalesPdfFile(sale, items, schedules, customer, profile);
       downloadPdfFile(pdfFile, pdfFile.name);
       showSuccess('Gerçek tek sayfa PDF indirildi.');
     } catch (err: any) {
+
       showError(err.message || 'PDF indirme başarısız.');
     }
   };
