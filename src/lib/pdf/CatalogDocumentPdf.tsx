@@ -9,6 +9,7 @@ import {
   Font,
 } from '@react-pdf/renderer';
 import { Product, Profile } from '@/types/database.types';
+import { PETIVOX_LOGO_BASE64 } from '@/assets/petivoxLogoBase64';
 
 // 1. REGISTER ROBOTO TTF FONT WITH FULL TURKISH UNICODE (LATIN-EXT) SUPPORT
 Font.register({
@@ -212,11 +213,11 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   productTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 700,
     color: '#0F172A',
     marginBottom: 3,
-    height: 28,
+    lineHeight: 1.3,
   },
   unitBadge: {
     fontSize: 9,
@@ -354,8 +355,8 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
   const phone = profile?.phone || '0555 000 0000';
   const address = profile?.address || 'Toptancılar Sitesi, Türkiye';
 
-  // Petivox Logo URL (Loaded from public folder)
-  const logoUrl = '/petivox-logo.png';
+  // Petivox Logo (Base64 embedded for 100% reliable PDF rendering)
+  const logoUrl = PETIVOX_LOGO_BASE64;
 
   // 4 ITEMS PER PAGE (2 COLS x 2 ROWS) FOR MAXIMUM WHATSAPP & MOBILE LEGIBILITY
   const ITEMS_PER_PAGE = 4;
@@ -492,11 +493,6 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
             <View style={styles.contactCard}>
               <Text style={styles.contactCardLabel}>FİRMA ÜNVANI</Text>
               <Text style={styles.contactCardValue}>{businessName}</Text>
-            </View>
-
-            <View style={styles.contactCard}>
-              <Text style={styles.contactCardLabel}>ADRES</Text>
-              <Text style={styles.contactCardValue}>{address}</Text>
             </View>
           </View>
         </View>
