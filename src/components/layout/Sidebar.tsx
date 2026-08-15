@@ -55,15 +55,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenNewSaleModal }) => {
       {/* Brand Header */}
       <div className="p-5 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-brand-400 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-brand-500/20">
-            P
-          </div>
+          <img
+            src="/petivox-logo.png"
+            alt="Petivox Logo"
+            className="w-10 h-10 rounded-xl object-cover border border-emerald-800/80 shadow-md"
+          />
           <div>
-            <h1 className="font-bold text-white tracking-tight leading-tight text-sm">
-              PETSHOP TOPTAN
+            <h1 className="font-extrabold text-white tracking-tight leading-tight text-sm">
+              PETIVOX TOPTAN
             </h1>
             <p className="text-xs text-slate-400 truncate max-w-[130px]">
-              {profile?.business_name || 'İşletme Yönetimi'}
+              {profile?.business_name || 'Petshop Yönetimi'}
             </p>
           </div>
         </div>

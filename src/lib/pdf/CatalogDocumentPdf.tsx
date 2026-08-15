@@ -54,8 +54,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   coverLogoImage: {
-    width: 220,
-    height: 70,
+    width: 130,
+    height: 130,
+    borderRadius: 16,
     objectFit: 'contain',
   },
   coverHeroCard: {
@@ -124,8 +125,9 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   headerLogoImage: {
-    width: 110,
-    height: 32,
+    width: 38,
+    height: 38,
+    borderRadius: 8,
     objectFit: 'contain',
   },
   headerCatalogTitle: {
@@ -477,7 +479,7 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
       {/* 3. CLOSING CONTACT PAGE (SON SAYFA) */}
       <Page size="A4" style={styles.contactPage}>
         <View style={styles.contactHero}>
-          <Image src={logoUrl} style={{ width: 200, height: 60, objectFit: 'contain', marginBottom: 20 }} />
+          <Image src={logoUrl} style={{ width: 120, height: 120, borderRadius: 16, objectFit: 'contain', marginBottom: 16 }} />
 
           <Text style={styles.contactMainTitle}>SİPARİŞ VE İLETİŞİM</Text>
           <Text style={styles.contactSubTitle}>
