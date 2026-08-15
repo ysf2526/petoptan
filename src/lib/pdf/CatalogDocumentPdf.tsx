@@ -59,6 +59,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     objectFit: 'contain',
   },
+  coverBrandTitle: {
+    fontSize: 20,
+    fontWeight: 700,
+    color: '#A7F3D0',
+    marginTop: 12,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
   coverHeroCard: {
     marginVertical: 'auto',
     backgroundColor: '#0D382B',
@@ -372,17 +380,17 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
         </View>
 
         <View style={styles.coverHeroCard}>
+          <Text style={styles.coverBrandTitle}>PETIVOX TOPTAN SATIŞ</Text>
           <Text style={styles.coverMainTitle}>TOPTAN ÜRÜN KATALOĞU</Text>
           <Text style={styles.coverSubtitle}>
             Petshop İşletmeleri İçin Güncel Ürün Kataloğu ve Toptan Fiyat Listesi
           </Text>
-          <Text style={styles.coverPillBadge}>PETIVOX TOPTAN SATIŞ</Text>
         </View>
 
         <View style={styles.coverFooterCard}>
           <Text style={styles.coverContactHeading}>İLETİŞİM VE İŞLETME BİLGİLERİ</Text>
           <Text style={styles.coverContactText}>Firma Ünvanı: {businessName}</Text>
-          <Text style={styles.coverContactText}>Telefon & WhatsApp Sipariş Hat: {phone}</Text>
+          <Text style={styles.coverContactText}>Telefon & WhatsApp Sipariş Hattı: {phone}</Text>
           <Text style={styles.coverContactText}>Adres: {address}</Text>
           <Text style={styles.coverContactText}>Katalog Tarihi: {generatedDate}</Text>
         </View>
