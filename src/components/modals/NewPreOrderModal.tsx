@@ -84,6 +84,14 @@ export const NewPreOrderModal: React.FC<NewPreOrderModalProps> = ({
   if (!isOpen) return null;
 
   const handleAddProduct = (prod: Product) => {
+    if (prod.product_type !== 'pre_order' && prod.current_stock > 0) {
+      showToast(
+        `🟢 "${prod.product_name}" ürünü depoda stokta mevcut (${prod.current_stock} ${prod.unit || 'Adet'}). Stokta olan ürünler için Ön Sipariş oluşturamazsınız. Lütfen Normal Satış / Sipariş ekranını kullanınız.`,
+        'warning'
+      );
+      return;
+    }
+
     const existingIndex = selectedItems.findIndex((i) => i.product_id === prod.id);
     if (existingIndex > -1) {
       const updated = [...selectedItems];
@@ -105,6 +113,7 @@ export const NewPreOrderModal: React.FC<NewPreOrderModalProps> = ({
     }
     setProductSearch('');
   };
+
 
   const handleUnregisteredProductCreated = (newProd: Product, qty: number) => {
     setProducts((prev) => [newProd, ...prev]);

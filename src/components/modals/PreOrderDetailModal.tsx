@@ -241,38 +241,21 @@ export const PreOrderDetailModal: React.FC<PreOrderDetailModalProps> = ({
                 </div>
               </div>
 
-              {/* Main Action Buttons Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                {/* STEP 1: Mark Stock Ready Button */}
-                <button
-                  type="button"
-                  onClick={handleMarkStockReady}
-                  disabled={loading || isStockReady}
-                  className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-98 ${
-                    isStockReady
-                      ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300 opacity-80 cursor-default'
-                      : 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white shadow-lg shadow-emerald-500/20'
-                  }`}
-                >
-                  <Boxes className="w-4 h-4" />
-                  <span>
-                    {isStockReady ? '✅ Ürünlerin Stoğu Oluştu (Tamam)' : '🟢 Ürünlerin Stoğu Oluştu'}
-                  </span>
-                </button>
-
-                {/* STEP 2: Convert To Real Order / Prepare Sale Button */}
+              {/* Single Action Button: STOK GELDİ, SİPARİŞİ HAZIRLA */}
+              <div className="pt-1">
                 <button
                   type="button"
                   onClick={() => setShowConvertConfirm(true)}
                   disabled={loading}
-                  className="p-3 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-brand-500/20 transition-all active:scale-98"
+                  className="w-full p-3.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-brand-600 hover:from-emerald-500 hover:to-brand-500 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2.5 shadow-xl shadow-emerald-600/25 transition-all active:scale-98 border border-emerald-400/30"
                 >
-                  <ShoppingCart className="w-4 h-4" />
-                  <span>📦 Siparişi Hazırla (Gerçek Siparişe Dönüştür)</span>
+                  <ShoppingCart className="w-5 h-5" />
+                  <span>📦 STOK GELDİ, SİPARİŞİ HAZIRLA</span>
                 </button>
               </div>
             </div>
           )}
+
 
           {/* Converted Info Notice Banner (Madde 14 & 15) */}
           {isConverted && (
