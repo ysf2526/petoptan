@@ -1,5 +1,4 @@
 import fs from 'fs';
-import path from 'path';
 
 const logoPath = 'c:/petoptan/public/petivox-logo.png';
 const targetPath = 'c:/petoptan/src/assets/petivoxLogoBase64.ts';
