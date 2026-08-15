@@ -38,12 +38,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Roboto',
   },
 
-  // 1. COVER PAGE DESIGN (MATCHING USER REFERENCE DESIGN EXACTLY)
+  // 1. COVER PAGE DESIGN (MATCHING REFERENCE DESIGN EXACTLY)
   coverPage: {
     paddingTop: 24,
     paddingBottom: 24,
     paddingHorizontal: 28,
-    backgroundColor: '#FFFFFF', // Clean White Upper Canvas
+    backgroundColor: '#FFFFFF', // Pure White Canvas (Matches logo background seamlessly)
     color: '#0F172A',
     fontFamily: 'Roboto',
     display: 'flex',
@@ -55,12 +55,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     textAlign: 'center',
     marginBottom: 4,
+    backgroundColor: '#FFFFFF', // Seamless logo area
   },
   coverLogoImage: {
-    height: 48,
-    width: 160,
+    height: 52,
+    width: 175,
     objectFit: 'contain',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   coverMainTitle: {
     fontSize: 22,
@@ -147,15 +148,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerLogoImage: {
-    width: 28,
+    width: 32,
     height: 28,
-    borderRadius: 6,
+    borderRadius: 4,
     objectFit: 'contain',
   },
   headerBrandText: {
     fontSize: 10,
     fontWeight: 700,
-    color: '#0A2E23',
+    color: '#043933',
     letterSpacing: 0.5,
   },
   headerCatalogTitle: {
@@ -165,9 +166,9 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 
-  // SECTION CATEGORY BANNER
+  // SECTION CATEGORY BANNER (UNIFIED DESIGN SYSTEM)
   categoryBanner: {
-    backgroundColor: '#0A2E23', // Dark Forest Green
+    backgroundColor: '#043933', // Deep Petivox Teal
     borderRadius: 6,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -201,7 +202,7 @@ const styles = StyleSheet.create({
   },
   productCard: {
     width: '48.8%',
-    height: 228,
+    height: 232,
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
     borderWidth: 1,
@@ -212,7 +213,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   imageContainer: {
-    height: 118,
+    height: 124,
     width: '100%',
     backgroundColor: '#FAFAFA',
     borderRadius: 8,
@@ -287,7 +288,7 @@ const styles = StyleSheet.create({
   priceAmount: {
     fontSize: 13.5,
     fontWeight: 700,
-    color: '#0D382B', // Deep Green Price
+    color: '#043933', // Deep Petivox Teal Price
   },
   priceBadge: {
     backgroundColor: '#D1FAE5',
@@ -325,7 +326,7 @@ const styles = StyleSheet.create({
   // 4. CLOSING CONTACT PAGE (SON SAYFA)
   contactPage: {
     padding: 32,
-    backgroundColor: '#0A2E23',
+    backgroundColor: '#043933', // Deep Petivox Teal
     color: '#FFFFFF',
     fontFamily: 'Roboto',
     display: 'flex',
@@ -358,10 +359,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   contactCard: {
-    backgroundColor: '#0D382B',
+    backgroundColor: '#002E28',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#154D3C',
+    borderColor: '#0D685E',
     padding: 14,
     alignItems: 'center',
   },
@@ -388,6 +389,7 @@ interface CatalogDocumentPdfProps {
 
 interface CategoryPageData {
   categoryName: string;
+  displayCategoryTitle: string;
   items: Product[];
   pageIndexInCategory: number;
   totalPagesInCategory: number;
@@ -400,6 +402,27 @@ const formatPackagingUnit = (unit?: string | null) => {
   return formatted;
 };
 
+// Formats category headers cleanly for customers without touching database values
+const formatCategoryDisplayTitle = (rawCategory: string): string => {
+  if (!rawCategory) return 'ÜRÜNLER';
+  const upper = rawCategory.trim().toUpperCase();
+
+  // REQ 6: Map reward & wet cat food to concise "ÖDÜL MAMALARI" or "KONSERVE / YAŞ MAMALAR"
+  if (upper.includes('ÖDÜL') || upper.includes('ODUL')) {
+    return 'ÖDÜL MAMALARI';
+  }
+  if (upper.includes('KONSERVE') || upper.includes('YAŞ MAMA') || upper.includes('YAS MAMA')) {
+    return 'KONSERVE / YAŞ MAMALAR';
+  }
+  if (upper === 'KEDİ MAMASI' || upper === 'KEDI MAMASI') {
+    return 'KEDİ MAMALARI';
+  }
+  if (upper === 'KÖPEK MAMASI' || upper === 'KOPEK MAMASI') {
+    return 'KÖPEK MAMALARI';
+  }
+  return upper;
+};
+
 export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
   profile,
   productsByCategory,
@@ -410,7 +433,7 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
 
   // Real Petivox Logo (Public static JPG asset - DO NOT CHANGE)
   const logoUrl = typeof window !== 'undefined' ? '/Petivx.jpg' : 'public/Petivx.jpg';
-  
+
   // Cover Page Hero Image (Featuring Cat, Dog & Wholesale Products Collage)
   const coverHeroUrl = typeof window !== 'undefined' ? '/catalog_cover_hero.jpg' : 'public/catalog_cover_hero.jpg';
 
@@ -425,12 +448,14 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
   Object.entries(productsByCategory).forEach(([categoryName, items]) => {
     if (!items || items.length === 0) return;
 
+    const displayCategoryTitle = formatCategoryDisplayTitle(categoryName);
     const totalPagesForCat = Math.ceil(items.length / ITEMS_PER_PAGE);
 
     for (let pIdx = 0; pIdx < totalPagesForCat; pIdx++) {
       const pageItems = items.slice(pIdx * ITEMS_PER_PAGE, (pIdx + 1) * ITEMS_PER_PAGE);
       pages.push({
         categoryName,
+        displayCategoryTitle,
         items: pageItems,
         pageIndexInCategory: pIdx,
         totalPagesInCategory: totalPagesForCat,
@@ -440,7 +465,7 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
 
   return (
     <Document title={`${businessName} - TOPTAN ÜRÜN KATALOĞU`}>
-      {/* 1. COVER PAGE (KAPAK SAYFASI - MATCHING REFERENCE IMAGE EXACTLY) */}
+      {/* 1. COVER PAGE (MATCHING REFERENCE IMAGE EXACTLY WITH SEAMLESS LOGO AREA) */}
       <Page size="A4" style={styles.coverPage}>
         {/* Header Title Section */}
         <View style={styles.coverHeaderSection}>
@@ -487,7 +512,7 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
           {/* Dedicated Category Banner Header */}
           <View style={styles.categoryBanner}>
             <Text style={styles.categoryTitleText}>
-              {pageData.categoryName}
+              {pageData.displayCategoryTitle}
               {pageData.totalPagesInCategory > 1 ? ` (${pageData.pageIndexInCategory + 1}/${pageData.totalPagesInCategory})` : ''}
             </Text>
             <Text style={styles.categorySubtitleText}>TOPTAN ÜRÜNLER</Text>
@@ -579,7 +604,7 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
           </View>
         </View>
 
-        <View style={{ borderTopWidth: 1, borderTopColor: '#154D3C', paddingTop: 12, textAlign: 'center' }}>
+        <View style={{ borderTopWidth: 1, borderTopColor: '#0D685E', paddingTop: 12, textAlign: 'center' }}>
           <Text style={{ fontSize: 8.5, color: '#A7F3D0' }}>
             Petivox Toptan Satış • Petshop İşletmelerinin Güvenilir Tedarikçisi • {generatedDate}
           </Text>
