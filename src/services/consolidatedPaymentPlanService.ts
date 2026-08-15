@@ -79,8 +79,8 @@ export function calculateNetCustomerDebt(params: CalculateDebtParams): NetDebtCa
 }
 
 /**
- * Builds a unified, customer-level consolidated payment plan based on net customer debt and weekly payment target.
- * Preserves individual sale 30-day term dates in the background while presenting a single clean schedule.
+ * Builds a unified, date-consolidated payment plan.
+ * Preserves previous unpaid schedule due dates and amounts, and merges new sale installments on top by date.
  */
 export function buildConsolidatedPaymentPlan(
   customer: Customer | null,
@@ -112,41 +112,84 @@ export function buildConsolidatedPaymentPlan(
 
   paymentSchedules?.forEach((sch) => {
     const rem = Number(sch.remaining_amount || 0);
-    if (sch.due_date < todayStr || sch.status === 'overdue') {
-      overdueDebt += rem;
-    } else if (sch.due_date >= todayStr && sch.due_date <= nextWeekStr) {
-      dueThisWeek += rem;
+    if (rem > 0 && sch.status !== 'paid') {
+      if (sch.due_date < todayStr || sch.status === 'overdue') {
+        overdueDebt += rem;
+      } else if (sch.due_date >= todayStr && sch.due_date <= nextWeekStr) {
+        dueThisWeek += rem;
+      }
     }
   });
 
-  // Generate Weekly Consolidated Installments
+  // -------------------------------------------------------------------------
+  // CONSOLIDATION BY DUE DATE: Aggregate active unpaid schedule items by due_date
+  // -------------------------------------------------------------------------
+  const activeUnpaidSchedules = (paymentSchedules || []).filter(
+    (s) => Number(s.remaining_amount || 0) > 0 && s.status !== 'paid'
+  );
+
+  const dateMap: { [dateStr: string]: number } = {};
+
+  activeUnpaidSchedules.forEach((sch) => {
+    const d = sch.due_date;
+    const amt = Number(sch.remaining_amount || 0);
+    if (d && amt > 0) {
+      dateMap[d] = (dateMap[d] || 0) + amt;
+    }
+  });
+
+  const sortedDates = Object.keys(dateMap).sort();
   const installments: ConsolidatedInstallment[] = [];
-  let remainingUnplanned = safeTotalDebt;
-  const today = new Date();
+  let runningUnplanned = safeTotalDebt;
   let weekIndex = 1;
 
-  while (remainingUnplanned > 0.01 && weekIndex <= 52) {
-    const d = new Date(today);
-    d.setDate(d.getDate() + weekIndex * 7);
-    const dateStr = d.toISOString().split('T')[0];
+  if (sortedDates.length > 0) {
+    // Merge active unpaid schedules by exact/closest due date
+    for (const dStr of sortedDates) {
+      const instAmt = Math.min(dateMap[dStr], runningUnplanned);
+      if (instAmt <= 0) continue;
 
-    const currentInstallment = Math.min(weeklyTarget, remainingUnplanned);
-    const nextBalance = Math.max(0, remainingUnplanned - currentInstallment);
+      const nextBal = Math.max(0, runningUnplanned - instAmt);
+      installments.push({
+        weekIndex,
+        dueDate: dStr,
+        amount: Number(instAmt.toFixed(2)),
+        remainingBalance: Number(nextBal.toFixed(2)),
+      });
 
-    installments.push({
-      weekIndex,
-      dueDate: dateStr,
-      amount: Number(currentInstallment.toFixed(2)),
-      remainingBalance: Number(nextBalance.toFixed(2)),
-    });
+      runningUnplanned -= instAmt;
+      weekIndex++;
+      if (runningUnplanned <= 0.01) break;
+    }
+  }
 
-    remainingUnplanned -= currentInstallment;
-    weekIndex++;
+  // Fallback: If no DB schedules exist yet for an active debt, generate 4 weekly installments
+  if (runningUnplanned > 0.01) {
+    const fallbackTarget = Math.ceil(runningUnplanned / 4);
+    const today = new Date();
+
+    while (runningUnplanned > 0.01 && weekIndex <= 52) {
+      const d = new Date(today);
+      d.setDate(d.getDate() + (weekIndex * 7));
+      const dStr = d.toISOString().split('T')[0];
+
+      const instAmt = Math.min(fallbackTarget, runningUnplanned);
+      const nextBal = Math.max(0, runningUnplanned - instAmt);
+
+      installments.push({
+        weekIndex,
+        dueDate: dStr,
+        amount: Number(instAmt.toFixed(2)),
+        remainingBalance: Number(nextBal.toFixed(2)),
+      });
+
+      runningUnplanned -= instAmt;
+      weekIndex++;
+    }
   }
 
   const estimatedWeeksToClose = installments.length;
 
-  // Check 30-Day Term Risk for Newest Sale
   const activeSales = sales?.filter((s) => s.status !== 'cancelled') || [];
   const newestSale = activeSales.length > 0 ? activeSales[0] : null;
   const newestSaleDueDate = newestSale?.due_date || null;
