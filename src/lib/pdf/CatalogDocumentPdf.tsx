@@ -38,98 +38,18 @@ const styles = StyleSheet.create({
     fontFamily: 'Roboto',
   },
 
-  // 1. COVER PAGE DESIGN (MATCHING REFERENCE DESIGN EXACTLY)
+  // 1. COVER PAGE DESIGN (DIRECT FULL A4 PAGE POSTER IMAGE)
   coverPage: {
-    paddingTop: 24,
-    paddingBottom: 24,
-    paddingHorizontal: 28,
-    backgroundColor: '#FFFFFF', // Pure White Canvas (Matches logo background seamlessly)
-    color: '#0F172A',
-    fontFamily: 'Roboto',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'space-between',
+    padding: 0,
+    margin: 0,
+    backgroundColor: '#FFFFFF',
     height: '100%',
-  },
-  coverHeaderSection: {
-    alignItems: 'center',
-    textAlign: 'center',
-    marginBottom: 4,
-    backgroundColor: '#FFFFFF', // Seamless logo area
-  },
-  coverLogoImage: {
-    height: 52,
-    width: 175,
-    objectFit: 'contain',
-    marginBottom: 6,
-  },
-  coverMainTitle: {
-    fontSize: 22,
-    fontWeight: 700,
-    color: '#043933', // Deep Petivox Teal
-    letterSpacing: 0.8,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  coverSubtitle: {
-    fontSize: 10.5,
-    color: '#334155',
-    lineHeight: 1.35,
-    textAlign: 'center',
-    maxWidth: 340,
-  },
-  coverHeroImageContainer: {
     width: '100%',
-    height: 295,
-    marginVertical: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  coverHeroImage: {
+  coverFullPosterImage: {
     width: '100%',
     height: '100%',
     objectFit: 'contain',
-  },
-  coverBottomBanner: {
-    backgroundColor: '#043933', // Dark Teal/Green Footer Card
-    borderRadius: 14,
-    padding: 16,
-    color: '#FFFFFF',
-    marginTop: 4,
-  },
-  coverBadgeTitle: {
-    fontSize: 11,
-    fontWeight: 700,
-    color: '#FFFFFF',
-    letterSpacing: 1,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  coverInfoBox: {
-    borderWidth: 1,
-    borderColor: '#0D685E',
-    borderRadius: 10,
-    padding: 12,
-    backgroundColor: '#002E28',
-  },
-  coverInfoHeading: {
-    fontSize: 9,
-    color: '#34D399',
-    fontWeight: 700,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  coverInfoText: {
-    fontSize: 10.5,
-    color: '#FFFFFF',
-    marginBottom: 3,
-    fontWeight: 700,
-  },
-  coverInfoSubtext: {
-    fontSize: 8.5,
-    color: '#94A3B8',
-    marginBottom: 1,
   },
 
   // 2. INNER PAGE HEADER & FOOTER
@@ -434,8 +354,8 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
   // Real Petivox Logo (Public static JPG asset - DO NOT CHANGE)
   const logoUrl = typeof window !== 'undefined' ? '/Petivx.jpg' : 'public/Petivx.jpg';
 
-  // Cover Page Hero Image (Featuring Cat, Dog & Wholesale Products Collage)
-  const coverHeroUrl = typeof window !== 'undefined' ? '/catalog_cover_hero.jpg' : 'public/catalog_cover_hero.jpg';
+  // Cover Page Full Image (User uploaded poster image directly as Cover Page 1)
+  const coverFullPosterUrl = typeof window !== 'undefined' ? '/catalog_cover_full.jpg' : 'public/catalog_cover_full.jpg';
 
   // EXACT REQ: MAX 6 PRODUCTS PER PAGE (2 COLS x 3 ROWS)
   const ITEMS_PER_PAGE = 6;
@@ -465,36 +385,9 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
 
   return (
     <Document title={`${businessName} - TOPTAN ÜRÜN KATALOĞU`}>
-      {/* 1. COVER PAGE (MATCHING REFERENCE IMAGE EXACTLY WITH SEAMLESS LOGO AREA) */}
+      {/* 1. COVER PAGE (DIRECT FULL PAGE USER POSTER IMAGE) */}
       <Page size="A4" style={styles.coverPage}>
-        {/* Header Title Section */}
-        <View style={styles.coverHeaderSection}>
-          <Image src={logoUrl} style={styles.coverLogoImage} />
-          <Text style={styles.coverMainTitle}>TOPTAN ÜRÜN KATALOĞU</Text>
-          <Text style={styles.coverSubtitle}>
-            Petshop İşletmeleri İçin Güncel{"\n"}Ürün Kataloğu ve Toptan Fiyat Listesi
-          </Text>
-        </View>
-
-        {/* Center Hero Image (Fluffy Cat, Golden Retriever & Product Collage) */}
-        <View style={styles.coverHeroImageContainer}>
-          <Image src={coverHeroUrl} style={styles.coverHeroImage} />
-        </View>
-
-        {/* Bottom Banner Card */}
-        <View style={styles.coverBottomBanner}>
-          <Text style={styles.coverBadgeTitle}>GÜNCEL TOPTAN FİYAT LİSTESİ</Text>
-
-          <View style={styles.coverInfoBox}>
-            <Text style={styles.coverInfoHeading}>İLETİŞİM BİLGİLERİ</Text>
-            <Text style={styles.coverInfoSubtext}>Telefon & WhatsApp Sipariş Hattı</Text>
-            <Text style={styles.coverInfoText}>{phone}</Text>
-            <Text style={styles.coverInfoSubtext}>Firma Ünvanı: {businessName}</Text>
-            <Text style={{ fontSize: 9, color: '#34D399', marginTop: 4, fontWeight: 700 }}>
-              Katalog Tarihi: {generatedDate}
-            </Text>
-          </View>
-        </View>
+        <Image src={coverFullPosterUrl} style={styles.coverFullPosterImage} />
       </Page>
 
       {/* 2. ISOLATED CATEGORY PRODUCT PAGES */}
