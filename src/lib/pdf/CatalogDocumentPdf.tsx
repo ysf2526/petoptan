@@ -10,162 +10,192 @@ import {
 } from '@react-pdf/renderer';
 import { Product, Profile } from '@/types/database.types';
 
-// Register Turkish-compatible font if needed or use standard Helvetica
 Font.registerHyphenationCallback((word) => [word]);
 
 const styles = StyleSheet.create({
+  // PAGE LAYOUT - CLEAN WHITE & PREMIUM SLATE
   page: {
     padding: 30,
-    backgroundColor: '#0F172A', // Dark slate bg for ultra-modern look
-    color: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
+    color: '#0F172A',
     fontFamily: 'Helvetica',
   },
+
+  // 1. COVER PAGE DESIGN
   coverPage: {
     padding: 40,
-    backgroundColor: '#090D16',
-    color: '#FFFFFF',
+    backgroundColor: '#FFFFFF',
+    color: '#0F172A',
     fontFamily: 'Helvetica',
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'space-between',
     height: '100%',
   },
+  coverTopBar: {
+    height: 8,
+    backgroundColor: '#7C3AED', // Premium Purple Accent
+    borderRadius: 4,
+    marginBottom: 24,
+  },
   coverHeader: {
-    borderBottomWidth: 3,
-    borderBottomColor: '#9333EA', // Purple brand accent
-    paddingBottom: 20,
-    marginBottom: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 30,
+    gap: 16,
   },
   coverLogoBox: {
-    width: 60,
-    height: 60,
+    width: 64,
+    height: 64,
     borderRadius: 16,
-    backgroundColor: '#9333EA',
+    backgroundColor: '#7C3AED',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 15,
   },
   coverLogoText: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
   coverBusinessName: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#0F172A',
     letterSpacing: 0.5,
   },
   coverTagline: {
-    fontSize: 12,
-    color: '#C084FC',
-    marginTop: 4,
+    fontSize: 11,
+    color: '#7C3AED',
+    marginTop: 3,
     fontWeight: 'bold',
+    textTransform: 'uppercase',
   },
-  coverBody: {
+  coverHeroBox: {
     marginVertical: 'auto',
-    textAlign: 'center',
-    padding: 20,
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#E2E8F0',
+    padding: 30,
+    textAlign: 'center',
   },
   coverTitle: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 10,
+    color: '#0F172A',
+    marginBottom: 12,
   },
   coverSubtitle: {
-    fontSize: 14,
-    color: '#94A3B8',
-    marginBottom: 20,
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: 24,
+    lineHeight: 1.4,
   },
-  coverBadge: {
-    backgroundColor: '#9333EA',
+  coverPillBadge: {
+    backgroundColor: '#7C3AED',
     color: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
     fontSize: 12,
     fontWeight: 'bold',
     alignSelf: 'center',
   },
-  coverFooter: {
-    borderTopWidth: 1,
-    borderTopColor: '#334155',
-    paddingTop: 20,
-    marginTop: 40,
+  coverFooterCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    padding: 20,
+    color: '#FFFFFF',
+    marginTop: 20,
   },
-  coverContactTitle: {
+  coverContactHeading: {
     fontSize: 11,
     color: '#C084FC',
     fontWeight: 'bold',
-    marginBottom: 6,
+    marginBottom: 10,
     textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
-  coverContactText: {
+  coverContactItem: {
     fontSize: 10,
-    color: '#CBD5E1',
-    marginBottom: 4,
+    color: '#E2E8F0',
+    marginBottom: 6,
+    lineHeight: 1.4,
   },
 
-  // CATALOG INNER PAGES
-  header: {
+  // 2. INNER PAGE HEADER & FOOTER
+  innerHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomWidth: 2,
+    borderBottomColor: '#F1F5F9',
     paddingBottom: 10,
-    marginBottom: 15,
+    marginBottom: 16,
   },
-  headerTitle: {
-    fontSize: 14,
+  headerBusiness: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#0F172A',
+  },
+  headerCatalogTitle: {
+    fontSize: 10,
+    color: '#7C3AED',
+    fontWeight: 'bold',
+  },
+
+  // CATEGORY BANNER
+  categoryBanner: {
+    backgroundColor: '#7C3AED',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  categoryTitleText: {
+    fontSize: 15,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  headerSubtitle: {
+  categoryPageMeta: {
     fontSize: 9,
-    color: '#C084FC',
-  },
-  categoryTitle: {
-    fontSize: 16,
+    color: '#E9D5FF',
     fontWeight: 'bold',
-    color: '#FFFFFF',
-    backgroundColor: '#1E293B',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#9333EA',
   },
+
+  // 3. PRODUCT GRID (2 COLS x 2 ROWS = 4 ITEMS PER PAGE FOR MAXIMUM MOBILE LEGIBILITY)
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    gap: 12,
   },
   productCard: {
-    width: '48%',
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
+    width: '48.5%',
+    height: 275, // Generous height for large text & image
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#334155',
-    padding: 10,
-    marginBottom: 12,
+    borderColor: '#E2E8F0',
+    padding: 12,
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'space-between',
-    height: 220,
+    marginBottom: 12,
   },
-  imageBox: {
-    height: 100,
-    backgroundColor: '#0F172A',
-    borderRadius: 8,
-    marginBottom: 8,
+  imageContainer: {
+    height: 125,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    marginBottom: 10,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -181,74 +211,143 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   placeholderText: {
+    fontSize: 9,
+    color: '#94A3B8',
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+  },
+  brandText: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#7C3AED',
+    textTransform: 'uppercase',
+    marginBottom: 3,
+  },
+  productTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#0F172A',
+    marginBottom: 4,
+    height: 28, // Fix height for 2 lines title
+  },
+  unitBadge: {
+    fontSize: 9,
+    color: '#64748B',
+    marginBottom: 4,
+    fontWeight: 'bold',
+  },
+  descText: {
     fontSize: 8,
     color: '#64748B',
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
+    height: 22,
+    lineHeight: 1.3,
   },
-  brandBadge: {
-    fontSize: 8,
-    fontWeight: 'bold',
-    color: '#C084FC',
-    textTransform: 'uppercase',
-    marginBottom: 2,
-  },
-  productName: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-    height: 26,
-  },
-  unitText: {
-    fontSize: 8,
-    color: '#94A3B8',
-    marginBottom: 6,
-  },
-  descriptionText: {
-    fontSize: 8,
-    color: '#CBD5E1',
-    marginBottom: 6,
-    height: 20,
-  },
-  cardFooter: {
+  priceRow: {
     borderTopWidth: 1,
-    borderTopColor: '#334155',
-    paddingTop: 6,
+    borderTopColor: '#E2E8F0',
+    paddingTop: 8,
+    marginTop: 4,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  priceLabel: {
+  priceTag: {
     fontSize: 7,
+    fontWeight: 'bold',
     color: '#64748B',
     textTransform: 'uppercase',
   },
-  priceValue: {
-    fontSize: 13,
+  priceAmount: {
+    fontSize: 16,
     fontWeight: 'bold',
-    color: '#34D399', // Emerald green price
+    color: '#059669', // Emerald Green Price
   },
+  priceBadge: {
+    backgroundColor: '#D1FAE5',
+    color: '#065F46',
+    fontSize: 7,
+    fontWeight: 'bold',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+
+  // FOOTER
   footer: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 25,
     left: 30,
     right: 30,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#1E293B',
+    borderTopColor: '#E2E8F0',
     paddingTop: 8,
   },
   footerText: {
     fontSize: 8,
-    color: '#64748B',
+    color: '#94A3B8',
   },
   pageNumber: {
     fontSize: 8,
     color: '#64748B',
     fontWeight: 'bold',
+  },
+
+  // 4. CLOSING CONTACT PAGE (SON SAYFA)
+  contactPage: {
+    padding: 40,
+    backgroundColor: '#0F172A',
+    color: '#FFFFFF',
+    fontFamily: 'Helvetica',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    height: '100%',
+  },
+  contactHero: {
+    marginVertical: 'auto',
+    alignItems: 'center',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  contactMainTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  contactSubTitle: {
+    fontSize: 14,
+    color: '#94A3B8',
+    marginBottom: 30,
+    lineHeight: 1.5,
+    maxWidth: 400,
+  },
+  contactCardGroup: {
+    width: '100%',
+    gap: 16,
+  },
+  contactCard: {
+    backgroundColor: '#1E293B',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#334155',
+    padding: 20,
+    alignItems: 'center',
+  },
+  contactCardLabel: {
+    fontSize: 10,
+    color: '#C084FC',
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  contactCardValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
 });
 
@@ -267,41 +366,45 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
   const phone = profile?.phone || '0555 000 0000';
   const address = profile?.address || 'Toptancılar Sitesi, Türkiye';
 
-  // Chunk array into pages of N items for clean PDF rendering
-  const ITEMS_PER_PAGE = 6; // 2 cols x 3 rows per page fits perfectly on A4
+  // 4 ITEMS PER PAGE (2 COLS x 2 ROWS) FOR MAXIMUM MOBILE READABILITY ON WHATSAPP
+  const ITEMS_PER_PAGE = 4;
 
   return (
-    <Document title={`${businessName} - Ürün Kataloğu`}>
-      {/* COVER PAGE */}
+    <Document title={`${businessName} - Toptan Ürün Kataloğu`}>
+      {/* 1. COVER PAGE */}
       <Page size="A4" style={styles.coverPage}>
-        <View style={styles.coverHeader}>
-          <View style={styles.coverLogoBox}>
-            <Text style={styles.coverLogoText}>P</Text>
+        <View>
+          <View style={styles.coverTopBar} />
+          <View style={styles.coverHeader}>
+            <View style={styles.coverLogoBox}>
+              <Text style={styles.coverLogoText}>P</Text>
+            </View>
+            <View>
+              <Text style={styles.coverBusinessName}>{businessName}</Text>
+              <Text style={styles.coverTagline}>PETSHOP İŞLETMELERİ İÇİN TOPTAN ÜRÜNLER</Text>
+            </View>
           </View>
-          <Text style={styles.coverBusinessName}>{businessName}</Text>
-          <Text style={styles.coverTagline}>TOPTAN PETSHOP ÜRÜN KATALOĞU</Text>
         </View>
 
-        <View style={styles.coverBody}>
-          <Text style={styles.coverTitle}>ÜRÜN KATALOĞU</Text>
+        <View style={styles.coverHeroBox}>
+          <Text style={styles.coverTitle}>TOPTAN ÜRÜN KATALOĞU</Text>
           <Text style={styles.coverSubtitle}>
-            Profesyonel Toptan Petshop Ürünleri ve Güncel Fiyat Listesi
+            Petshop İşletmeleri İçin Özel Güncel Ürün Kataloğu ve Toptan Fiyat Listesi
           </Text>
-          <Text style={styles.coverBadge}>TOPTAN SATIŞ ÖZEL KATALOĞU</Text>
+          <Text style={styles.coverPillBadge}>PROFESYONEL TOPTAN SATIŞ KATALOĞU</Text>
         </View>
 
-        <View style={styles.coverFooter}>
-          <Text style={styles.coverContactTitle}>İLETİŞİM VE SİPARİŞ BİLGİLERİ</Text>
-          <Text style={styles.coverContactText}>İşletme Adı: {businessName}</Text>
-          <Text style={styles.coverContactText}>Telefon / WhatsApp: {phone}</Text>
-          <Text style={styles.coverContactText}>Adres: {address}</Text>
-          <Text style={styles.coverContactText}>Katalog Tarihi: {generatedDate}</Text>
+        <View style={styles.coverFooterCard}>
+          <Text style={styles.coverContactHeading}>İLETİŞİM VE İŞLETME BİLGİLERİ</Text>
+          <Text style={styles.coverContactItem}>Firma / İşletme: {businessName}</Text>
+          <Text style={styles.coverContactItem}>Telefon & WhatsApp Sipariş: {phone}</Text>
+          <Text style={styles.coverContactItem}>Adres: {address}</Text>
+          <Text style={styles.coverContactItem}>Katalog Güncelleme Tarihi: {generatedDate}</Text>
         </View>
       </Page>
 
-      {/* PRODUCT PAGES GROUPED BY CATEGORY */}
+      {/* 2. PRODUCT PAGES GROUPED BY CATEGORY (4 ITEMS PER PAGE) */}
       {Object.entries(productsByCategory).map(([category, items]) => {
-        // Chunk items by 6 per page
         const pagesCount = Math.ceil(items.length / ITEMS_PER_PAGE);
         const pagesArray = Array.from({ length: pagesCount });
 
@@ -311,22 +414,27 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
           return (
             <Page key={`${category}_page_${pageIdx}`} size="A4" style={styles.page}>
               {/* Header */}
-              <View style={styles.header}>
-                <Text style={styles.headerTitle}>{businessName}</Text>
-                <Text style={styles.headerSubtitle}>Toptan Ürün Kataloğu</Text>
+              <View style={styles.innerHeader}>
+                <Text style={styles.headerBusiness}>{businessName}</Text>
+                <Text style={styles.headerCatalogTitle}>Toptan Ürün Kataloğu</Text>
               </View>
 
-              {/* Category Heading (show on first page of category) */}
-              <Text style={styles.categoryTitle}>
-                {category.toUpperCase()} {pagesCount > 1 ? `(Sayfa ${pageIdx + 1}/${pagesCount})` : ''}
-              </Text>
+              {/* Category Heading Banner */}
+              <View style={styles.categoryBanner}>
+                <Text style={styles.categoryTitleText}>{category}</Text>
+                {pagesCount > 1 && (
+                  <Text style={styles.categoryPageMeta}>
+                    Bölüm Sayfası {pageIdx + 1} / {pagesCount}
+                  </Text>
+                )}
+              </View>
 
-              {/* Products Grid */}
+              {/* 2x2 Product Grid */}
               <View style={styles.gridContainer}>
                 {pageItems.map((product) => (
                   <View key={product.id} style={styles.productCard} wrap={false}>
-                    {/* Image */}
-                    <View style={styles.imageBox}>
+                    {/* Image Container */}
+                    <View style={styles.imageContainer}>
                       {product.image_url ? (
                         <Image src={product.image_url} style={styles.productImage} />
                       ) : (
@@ -336,27 +444,25 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
                       )}
                     </View>
 
-                    {/* Content */}
+                    {/* Product Metadata */}
                     <View>
-                      {product.brand && (
-                        <Text style={styles.brandBadge}>{product.brand}</Text>
-                      )}
-                      <Text style={styles.productName}>{product.product_name}</Text>
-                      <Text style={styles.unitText}>Ambalaj / Birim: {product.unit || 'Adet'}</Text>
+                      {product.brand && <Text style={styles.brandText}>{product.brand}</Text>}
+                      <Text style={styles.productTitle}>{product.product_name}</Text>
+                      <Text style={styles.unitBadge}>Ambalaj / Birim: {product.unit || 'Adet'}</Text>
                       {product.description && (
-                        <Text style={styles.descriptionText}>
-                          {product.description.length > 55
-                            ? `${product.description.substring(0, 55)}...`
+                        <Text style={styles.descText}>
+                          {product.description.length > 50
+                            ? `${product.description.substring(0, 50)}...`
                             : product.description}
                         </Text>
                       )}
                     </View>
 
-                    {/* Footer / Price */}
-                    <View style={styles.cardFooter}>
+                    {/* Price Section */}
+                    <View style={styles.priceRow}>
                       <View>
-                        <Text style={styles.priceLabel}>TOPTAN FİYAT</Text>
-                        <Text style={styles.priceValue}>
+                        <Text style={styles.priceTag}>TOPTAN FİYAT</Text>
+                        <Text style={styles.priceAmount}>
                           {product.sale_price.toLocaleString('tr-TR', {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
@@ -364,6 +470,7 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
                           TL
                         </Text>
                       </View>
+                      <Text style={styles.priceBadge}>TOPTAN</Text>
                     </View>
                   </View>
                 ))}
@@ -372,17 +479,50 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
               {/* Page Footer */}
               <View style={styles.footer} fixed>
                 <Text style={styles.footerText}>
-                  {businessName} • Sipariş için Tel/WhatsApp: {phone}
+                  {businessName} • Sipariş Hattı: {phone}
                 </Text>
                 <Text
                   style={styles.pageNumber}
-                  render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+                  render={({ pageNumber, totalPages }) => `Sayfa ${pageNumber} / ${totalPages}`}
                 />
               </View>
             </Page>
           );
         });
       })}
+
+      {/* 3. CLOSING CONTACT PAGE (SON SAYFA) */}
+      <Page size="A4" style={styles.contactPage}>
+        <View style={styles.contactHero}>
+          <Text style={styles.contactMainTitle}>SİPARİŞ VE İLETİŞİM</Text>
+          <Text style={styles.contactSubTitle}>
+            Kataloğumuzdaki ürünler hakkında detaylı bilgi almak veya sipariş vermek için bizimle doğrudan WhatsApp veya telefon üzerinden iletişime geçebilirsiniz.
+          </Text>
+
+          <View style={styles.contactCardGroup}>
+            <View style={styles.contactCard}>
+              <Text style={styles.contactCardLabel}>TELEFON & WHATSAPP SİPARİŞ HATTI</Text>
+              <Text style={styles.contactCardValue}>{phone}</Text>
+            </View>
+
+            <View style={styles.contactCard}>
+              <Text style={styles.contactCardLabel}>FİRMA ÜNVANI</Text>
+              <Text style={styles.contactCardValue}>{businessName}</Text>
+            </View>
+
+            <View style={styles.contactCard}>
+              <Text style={styles.contactCardLabel}>ADRES</Text>
+              <Text style={styles.contactCardValue}>{address}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={{ borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 15, textAlign: 'center' }}>
+          <Text style={{ fontSize: 9, color: '#94A3B8' }}>
+            {businessName} • Petshop İşletmelerine Özel Toptan Satış Kataloğu • {generatedDate}
+          </Text>
+        </View>
+      </Page>
     </Document>
   );
 };

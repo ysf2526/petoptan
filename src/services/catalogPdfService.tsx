@@ -69,7 +69,7 @@ export const catalogPdfService = {
     const cleanBusinessName = (profile?.business_name || 'PetOptan')
       .replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ_]/g, '_')
       .replace(/_+/g, '_');
-    const filename = `${cleanBusinessName}_Urun_Katalogu.pdf`;
+    const filename = `${cleanBusinessName}_Toptan_Urun_Katalogu.pdf`;
 
     return { blob, filename, profile, totalProducts: products.length };
   },
