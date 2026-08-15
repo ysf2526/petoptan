@@ -23,6 +23,8 @@ import { Settings } from '@/pages/Settings';
 import { Assistant } from '@/pages/Assistant';
 import { PreOrders } from '@/pages/PreOrders';
 import { SupplyPlan } from '@/pages/SupplyPlan';
+import { Catalog } from '@/pages/Catalog';
+import { PublicCatalog } from '@/pages/PublicCatalog';
 
 export const App: React.FC = () => {
   return (
@@ -31,12 +33,15 @@ export const App: React.FC = () => {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            {/* Public Mobile Catalog Route (No Auth Required) */}
+            <Route path="/catalog/:slug" element={<PublicCatalog />} />
 
             {/* Protected Application Routes */}
             <Route element={<ProtectedRoute />}>
               <Route element={<Layout />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/assistant" element={<Assistant />} />
+                <Route path="/catalog" element={<Catalog />} />
                 <Route path="/pre-orders" element={<PreOrders />} />
                 <Route path="/supply-plan" element={<SupplyPlan />} />
                 <Route path="/sales" element={<Sales />} />
@@ -53,7 +58,6 @@ export const App: React.FC = () => {
                 <Route path="/settings" element={<Settings />} />
               </Route>
             </Route>
-
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

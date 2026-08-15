@@ -9,6 +9,7 @@ import { LayoutContextType } from '@/components/layout/Layout';
 import { ProductModal } from '@/components/modals/ProductModal';
 import { NewProductTypeModal } from '@/components/modals/NewProductTypeModal';
 import { ProductDetailModal } from '@/components/modals/ProductDetailModal';
+import { CatalogProductModal } from '@/components/modals/CatalogProductModal';
 import {
   Package,
   Search,
@@ -38,6 +39,7 @@ export const Products: React.FC = () => {
   const [onlyCritical, setOnlyCritical] = useState<boolean>(false);
 
   // Modals state
+  const [catalogModalOpen, setCatalogModalOpen] = useState(false);
   const [typeModalOpen, setTypeModalOpen] = useState(false);
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [selectedProductType, setSelectedProductType] = useState<ProductType>('stock');
@@ -148,13 +150,21 @@ export const Products: React.FC = () => {
             Stoklu ürünler ve ön sipariş taleplerini fotoğraflı ürün kartları ile yönetin.
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
-            onClick={handleOpenNewProduct}
-            className="bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white font-extrabold px-4 py-2.5 rounded-xl shadow-lg shadow-brand-500/20 text-xs sm:text-sm flex items-center gap-2 transition-all active:scale-95"
+            onClick={() => setCatalogModalOpen(true)}
+            className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold px-4 py-2.5 rounded-xl shadow-lg shadow-purple-600/20 text-xs sm:text-sm flex items-center gap-2 transition-all active:scale-95"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Yeni Ürün Ekle</span>
+            <span>+ Katalog Ürünü Ekle</span>
+          </button>
+
+          <button
+            onClick={handleOpenNewProduct}
+            className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-extrabold px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 transition-all active:scale-95"
+          >
+            <Plus className="w-4 h-4 text-emerald-400" />
+            <span>+ Stoklu Ürün Ekle</span>
           </button>
 
           <button
@@ -162,7 +172,7 @@ export const Products: React.FC = () => {
             className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-3.5 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 transition-all active:scale-95"
           >
             <Boxes className="w-4 h-4 text-indigo-400" />
-            <span className="hidden sm:inline">Depoya Mal Girişi Yap</span>
+            <span className="hidden sm:inline">Depoya Mal Girişi</span>
           </button>
         </div>
       </div>
@@ -448,6 +458,13 @@ export const Products: React.FC = () => {
           openDemandQty={openDemandMap[viewingProduct.id] || 0}
         />
       )}
+
+      {/* Catalog Product Modal */}
+      <CatalogProductModal
+        isOpen={catalogModalOpen}
+        onClose={() => setCatalogModalOpen(false)}
+        onSuccess={fetchProducts}
+      />
     </div>
   );
 };

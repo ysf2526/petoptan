@@ -190,6 +190,7 @@ export interface Profile {
   default_payment_term_days: number;
   default_min_stock: number;
   currency_symbol: string;
+  public_catalog_slug?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -246,11 +247,31 @@ export interface Product {
   image_url?: string | null;
   description?: string | null;
   show_in_catalog?: boolean;
+  show_price_in_catalog?: boolean;
   open_demand_qty?: number;
   active: boolean;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+}
+
+export interface PublicCatalogProduct {
+  id: string;
+  owner_id: string;
+  product_name: string;
+  brand: string | null;
+  category: string | null;
+  unit: ProductUnit;
+  sale_price: number;
+  show_price_in_catalog: boolean;
+  image_url: string | null;
+  description: string | null;
+  in_stock: boolean;
+  product_type: ProductType;
+  public_catalog_slug: string;
+  business_name: string;
+  business_phone: string | null;
+  business_address: string | null;
 }
 
 
