@@ -24,7 +24,6 @@ import { Assistant } from '@/pages/Assistant';
 import { PreOrders } from '@/pages/PreOrders';
 import { SupplyPlan } from '@/pages/SupplyPlan';
 import { Catalog } from '@/pages/Catalog';
-import { PublicCatalog } from '@/pages/PublicCatalog';
 
 export const App: React.FC = () => {
   return (
@@ -33,8 +32,6 @@ export const App: React.FC = () => {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
-            {/* Public Mobile Catalog Route (No Auth Required) */}
-            <Route path="/catalog/:slug" element={<PublicCatalog />} />
 
             {/* Protected Application Routes */}
             <Route element={<ProtectedRoute />}>

@@ -20,6 +20,7 @@ import {
   ClipboardList,
   PackageSearch,
   Store,
+  FileText,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -32,7 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenNewSaleModal }) => {
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/assistant', label: '🤖 İşletme Asistanı', icon: Bot },
-    { to: '/catalog', label: '📱 Ürün Kataloğu', icon: Store },
+    { to: '/catalog', label: '📄 PDF Ürün Kataloğu', icon: FileText },
     { to: '/pre-orders', label: '📋 Ön Siparişler', icon: ClipboardList },
     { to: '/supply-plan', label: '📦 Tedarik Planı', icon: PackageSearch },
     { to: '/sales', label: 'Satışlar', icon: ShoppingCart },

@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Product, ProductType } from '@/types/database.types';
-import { catalogService } from '@/services/catalogService';
-import { preOrderService } from '@/services/preOrderService';
+import { Product, Profile } from '@/types/database.types';
+import { catalogPdfService } from '@/services/catalogPdfService';
 import { formatCurrency } from '@/utils/formatters';
 import { useToast } from '@/context/ToastContext';
 import { CatalogProductModal } from '@/components/modals/CatalogProductModal';
@@ -10,41 +9,32 @@ import {
   Package,
   Plus,
   Search,
-  Filter,
-  Share2,
-  Copy,
-  ExternalLink,
+  Download,
   MessageCircle,
-  TrendingUp,
   Loader2,
   Edit2,
   Eye,
   EyeOff,
   CheckCircle2,
-  Clock,
+  FileText,
+  RefreshCw,
   Sparkles,
 } from 'lucide-react';
-
-interface DemandAnalysisItem {
-  product_id: string;
-  product_name: string;
-  brand: string | null;
-  unit: string;
-  total_demanded: number;
-  customer_count: number;
-}
 
 export const Catalog: React.FC = () => {
   const { showSuccess, showError } = useToast();
 
   const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [catalogSlug, setCatalogSlug] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<'ALL' | 'PRE_ORDER' | 'STOCK' | 'HIDDEN'>('ALL');
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [pdfFilename, setPdfFilename] = useState<string>('Urun_Katalogu.pdf');
+  const [totalCatalogProducts, setTotalCatalogProducts] = useState(0);
 
-  // Demand Analysis State
-  const [demandAnalysis, setDemandAnalysis] = useState<DemandAnalysisItem[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<'ALL' | 'CATALOG' | 'HIDDEN'>('ALL');
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -53,58 +43,26 @@ export const Catalog: React.FC = () => {
   const fetchCatalogData = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Fetch Slug
-      const slug = await catalogService.getOwnerCatalogSlug();
-      setCatalogSlug(slug);
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) return;
+
+      // 1. Fetch Profile
+      const { data: profData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userData.user.id)
+        .single();
+      setProfile(profData || null);
 
       // 2. Fetch Products
       const { data: pData } = await supabase
         .from('products')
         .select('*')
         .is('deleted_at', null)
-        .order('created_at', { ascending: false });
+        .order('category', { ascending: true })
+        .order('product_name', { ascending: true });
 
       setProducts(pData || []);
-
-      // 3. Calculate Demand Analysis (En Çok Talep Edilen Ürünler)
-      const { data: preItems } = await supabase
-        .from('pre_order_items')
-        .select('product_id, product_name, brand, unit, demanded_quantity, pre_order:pre_orders(customer_id, status)')
-        .is('deleted_at', null);
-
-      const demandMap: Record<string, { product_name: string; brand: string | null; unit: string; total: number; customers: Set<string> }> = {};
-
-      preItems?.forEach((it: any) => {
-        const status = it.pre_order?.status;
-        if (status === 'demand_received' || status === 'supply_pending') {
-          const pId = it.product_id || it.product_name;
-          if (!demandMap[pId]) {
-            demandMap[pId] = {
-              product_name: it.product_name,
-              brand: it.brand,
-              unit: it.unit || 'Adet',
-              total: 0,
-              customers: new Set(),
-            };
-          }
-          demandMap[pId].total += Number(it.demanded_quantity || 0);
-          if (it.pre_order?.customer_id) {
-            demandMap[pId].customers.add(it.pre_order.customer_id);
-          }
-        }
-      });
-
-      const analysisList: DemandAnalysisItem[] = Object.entries(demandMap).map(([pId, val]) => ({
-        product_id: pId,
-        product_name: val.product_name,
-        brand: val.brand,
-        unit: val.unit,
-        total_demanded: val.total,
-        customer_count: val.customers.size,
-      }));
-
-      analysisList.sort((a, b) => b.total_demanded - a.total_demanded);
-      setDemandAnalysis(analysisList);
     } catch (err: any) {
       console.error(err);
       showError('Katalog verileri yüklenirken hata oluştu.');
@@ -113,24 +71,58 @@ export const Catalog: React.FC = () => {
     }
   }, [showError]);
 
+  const generatePreviewPdf = useCallback(async () => {
+    setGeneratingPdf(true);
+    try {
+      const { blob, filename, totalProducts } = await catalogPdfService.generateCatalogPdfBlob();
+      const url = URL.createObjectURL(blob);
+      setPdfPreviewUrl(url);
+      setPdfFilename(filename);
+      setTotalCatalogProducts(totalProducts);
+    } catch (err: any) {
+      console.error(err);
+      // Don't alert if no catalog products marked yet
+      if (err.message?.includes('Katalogda gösterilmek üzere')) {
+        setPdfPreviewUrl(null);
+      } else {
+        showError(err.message || 'PDF oluşturulurken hata oluştu.');
+      }
+    } finally {
+      setGeneratingPdf(false);
+    }
+  }, [showError]);
+
   useEffect(() => {
-    fetchCatalogData();
-    const handleRefresh = () => fetchCatalogData();
-    window.addEventListener('refresh-data', handleRefresh);
-    return () => window.removeEventListener('refresh-data', handleRefresh);
-  }, [fetchCatalogData]);
+    fetchCatalogData().then(() => {
+      generatePreviewPdf();
+    });
+  }, [fetchCatalogData, generatePreviewPdf]);
 
-  // Public Catalog URL
-  const publicCatalogUrl = `${window.location.origin}/catalog/${catalogSlug}`;
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(publicCatalogUrl);
-    showSuccess('Katalog bağlantısı panoya kopyalandı!');
+  const handleDownloadPdf = async () => {
+    setGeneratingPdf(true);
+    try {
+      await catalogPdfService.downloadCatalogPdf();
+      showSuccess('Katalog PDF dosyası başarıyla indirildi.');
+    } catch (err: any) {
+      showError(err.message || 'PDF indirme hatası.');
+    } finally {
+      setGeneratingPdf(false);
+    }
   };
 
-  const handleShareWhatsApp = () => {
-    const text = `Merhaba, güncel toptan ürün kataloğumuzu aşağıdaki bağlantıdan inceleyebilir ve doğrudan ön siparişlerinizi iletebilirsiniz:\n\n🔗 ${publicCatalogUrl}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  const handleShareWhatsApp = async () => {
+    setGeneratingPdf(true);
+    try {
+      await catalogPdfService.downloadCatalogPdf();
+      const bName = profile?.business_name || 'PetOptan';
+      const msg = `Merhaba, ${bName} güncel toptan ürün kataloğumuz ektedir. Kataloğumuzu inceleyebilir ve siparişlerinizi iletebilirsiniz.`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+      showSuccess('PDF kopyalandı, WhatsApp açıldı.');
+    } catch (err: any) {
+      showError(err.message || 'Hata oluştu.');
+    } finally {
+      setGeneratingPdf(false);
+    }
   };
 
   const handleToggleShowInCatalog = async (prod: Product) => {
@@ -144,6 +136,7 @@ export const Catalog: React.FC = () => {
       if (error) throw error;
       setProducts((prev) => prev.map((p) => (p.id === prod.id ? { ...p, show_in_catalog: updatedVal } : p)));
       showSuccess(`"${prod.product_name}" ${updatedVal ? 'kataloğa eklendi' : 'katalogdan gizlendi'}.`);
+      generatePreviewPdf();
     } catch (err: any) {
       showError(err.message || 'Güncelleme hatası.');
     }
@@ -158,8 +151,7 @@ export const Catalog: React.FC = () => {
 
       if (!matchesSearch) return false;
 
-      if (filterType === 'PRE_ORDER') return p.product_type === 'pre_order' || p.current_stock <= 0;
-      if (filterType === 'STOCK') return p.current_stock > 0;
+      if (filterType === 'CATALOG') return p.show_in_catalog;
       if (filterType === 'HIDDEN') return !p.show_in_catalog;
 
       return true;
@@ -168,114 +160,137 @@ export const Catalog: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 animate-fadeIn pb-24">
-      {/* Top Banner & Public Link Actions */}
+      {/* Top Banner */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900 border border-purple-900/60 p-5 sm:p-6 rounded-2xl shadow-xl">
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-1 rounded-lg bg-purple-600/20 text-purple-400 text-xs font-black border border-purple-500/30">
-              MOBİL KATALOG & ÖN SİPARİŞ
+              PROFESYONEL B2B PDF KATALOG
             </span>
             <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              ÜRÜN KATALOĞU VE TALEP ANALİZİ
+              ÜRÜN KATALOĞU (PDF GENERATOR)
             </h1>
           </div>
           <p className="text-xs text-slate-400 max-w-xl">
-            Stokta olmayan ürünleri de kataloğa ekleyin, petshoplardan ön sipariş toplayın ve en çok talep edilen ürünlere göre tedarik yapın.
+            Tüm ürünlerinizden otomatik olarak yüksek çözünürlüklü A4 formatında profesyonel PDF ürün kataloğu üretin ve müşterilerinize gönderin.
           </p>
         </div>
 
-        {/* Share & Create Actions */}
+        {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2.5">
           <button
-            onClick={handleCopyLink}
+            onClick={generatePreviewPdf}
+            disabled={generatingPdf}
             className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition-all"
-            title="Katalog Linkini Kopyala"
+            title="Kataloğu Yenile"
           >
-            <Copy className="w-4 h-4 text-purple-400" />
-            <span>Link Kopyala</span>
+            <RefreshCw className={`w-4 h-4 text-purple-400 ${generatingPdf ? 'animate-spin' : ''}`} />
+            <span>Kataloğu Yenile</span>
           </button>
 
           <button
             onClick={handleShareWhatsApp}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
+            disabled={generatingPdf}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-95 disabled:opacity-50"
           >
             <MessageCircle className="w-4.5 h-4.5" />
-            <span>WHATSAPP'TAN PAYLAŞ</span>
+            <span>WHATSAPP'TAN GÖNDER</span>
           </button>
 
           <button
-            onClick={() => {
-              setEditingProduct(null);
-              setIsModalOpen(true);
-            }}
-            className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-purple-600/20 transition-all active:scale-95"
+            onClick={handleDownloadPdf}
+            disabled={generatingPdf}
+            className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-purple-600/20 transition-all active:scale-95 disabled:opacity-50"
           >
-            <Plus className="w-4.5 h-4.5" />
-            <span>+ KATALOG ÜRÜNÜ EKLE</span>
+            {generatingPdf ? <Loader2 className="w-4.5 h-4.5 animate-spin" /> : <Download className="w-4.5 h-4.5" />}
+            <span>📄 PDF KATALOĞU İNDİR</span>
           </button>
         </div>
       </div>
 
-      {/* DEMAND ANALYSIS WIDGET (TALEP ANALİZİ) */}
-      <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4 shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-purple-950 text-purple-400 border border-purple-800 flex items-center justify-center font-black">
-              📊
+      {/* PDF PREVIEW BOX & STATS */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: PDF Interactive Previewer */}
+        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col space-y-3 shadow-xl">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-purple-400" />
+              <h3 className="font-extrabold text-white text-sm">Canlı PDF Katalog Önizleme</h3>
             </div>
-            <div>
-              <h3 className="text-base font-extrabold text-white tracking-tight flex items-center gap-2">
-                <span>TALEP ANALİZİ (EN ÇOK TALEP EDİLEN ÜRÜNLER)</span>
-                <span className="bg-purple-950 text-purple-300 border border-purple-800 text-xs px-2.5 py-0.5 rounded-full font-black">
-                  {demandAnalysis.length} AÇIK TALEP ÜRÜNÜ
-                </span>
-              </h3>
-              <p className="text-xs text-slate-400">
-                Henüz satın almadığınız, petshopların kataloğunuzdan ön sipariş verdiği ürünlerin miktar sıralaması.
-              </p>
-            </div>
+
+            <span className="text-xs font-mono font-bold text-slate-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
+              {totalCatalogProducts} Ürün Katalogda
+            </span>
+          </div>
+
+          <div className="w-full h-[600px] bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex flex-col items-center justify-center relative">
+            {generatingPdf ? (
+              <div className="flex flex-col items-center gap-2 text-slate-400">
+                <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+                <span className="text-xs font-bold">Profesyonel PDF Katalog Oluşturuluyor...</span>
+              </div>
+            ) : pdfPreviewUrl ? (
+              <iframe
+                src={`${pdfPreviewUrl}#toolbar=1&navpanes=0`}
+                className="w-full h-full border-none rounded-xl"
+                title="Katalog PDF Önizleme"
+              />
+            ) : (
+              <div className="p-8 text-center text-xs text-slate-500 space-y-2">
+                <Package className="w-10 h-10 mx-auto text-slate-600 mb-1" />
+                <p className="font-bold text-slate-400">Henüz katalogda gösterilecek ürün seçilmedi.</p>
+                <p className="text-[11px] text-slate-500">
+                  Aşağıdaki listeden ürünlerin yanındaki "Katalogda Göster" kutucuğunu işaretleyin.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
-        {demandAnalysis.length === 0 ? (
-          <div className="p-6 text-center text-xs text-slate-500 bg-slate-950 rounded-xl border border-slate-800/60 flex items-center justify-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            <span>Şu anda bekleyen açık ön sipariş talebi bulunmamaktadır. Katalog linkinizi müşterilerinizle paylaşın!</span>
+        {/* Right: Quick Info & Rules */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+          <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+            <Sparkles className="w-5 h-5 text-amber-400" />
+            <h3 className="font-extrabold text-white text-sm">PDF Katalog Standartları</h3>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {demandAnalysis.slice(0, 6).map((item, idx) => (
-              <div
-                key={item.product_id}
-                className="bg-slate-950 border border-purple-900/60 p-4 rounded-xl space-y-2 relative shadow-md hover:border-purple-600 transition-all"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black text-purple-400 uppercase tracking-wider">
-                    #{idx + 1} EN ÇOK TALEP EDİLEN
-                  </span>
-                  <span className="text-xs font-mono font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                    {item.customer_count} Petshop İstedi
-                  </span>
-                </div>
 
-                <div>
-                  <h4 className="font-bold text-white text-sm leading-snug">{item.product_name}</h4>
-                  {item.brand && <span className="text-[11px] text-slate-400 block mt-0.5">{item.brand}</span>}
-                </div>
+          <div className="space-y-3 text-xs text-slate-300">
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+              <span className="font-bold text-purple-400 block">🎨 Marka & Kapak Tasarımı</span>
+              <p className="text-slate-400 text-[11px]">
+                Profilinizdeki <strong className="text-white">{profile?.business_name || 'İşletme Adı'}</strong>, telefon ve adres bilgileri otomatik olarak profesyonel kapağa yerleştirilir.
+              </p>
+            </div>
 
-                <div className="flex items-center justify-between border-t border-slate-900 pt-2 text-xs">
-                  <span className="text-slate-400 font-medium">Toplam Ön Sipariş:</span>
-                  <span className="text-base font-black text-emerald-400 font-mono">
-                    {item.total_demanded} {item.unit}
-                  </span>
-                </div>
-              </div>
-            ))}
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+              <span className="font-bold text-emerald-400 block">🔒 %100 Finansal Gizlilik</span>
+              <p className="text-slate-400 text-[11px]">
+                Alış fiyatı, tedarikçi, kâr marjı ve işletme içi gizli veriler PDF kataloğuna **KESİNLİKLE YANSITILMAZ**.
+              </p>
+            </div>
+
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+              <span className="font-bold text-sky-400 block">📑 A4 Çok Sayfalı Düzet</span>
+              <p className="text-slate-400 text-[11px]">
+                Ürünler kategorilere göre sıralanır, her sayfaya tam 6 ürün kartı sığdırılarak sayfa numaralarıyla derlenir.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                setEditingProduct(null);
+                setIsModalOpen(true);
+              }}
+              className="w-full bg-purple-600 hover:bg-purple-500 text-white font-extrabold py-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ YENİ KATALOG ÜRÜNÜ EKLE</span>
+            </button>
           </div>
-        )}
+        </div>
       </div>
 
-      {/* CATALOG PRODUCTS LIST */}
+      {/* PRODUCTS SELECTION LIST */}
       <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4 shadow-xl">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-800 pb-4">
           <div className="relative w-full sm:w-80">
@@ -284,37 +299,28 @@ export const Catalog: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Katalog ürünü veya marka ara..."
+              placeholder="Ürün adı, marka veya kategori ara..."
               className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-purple-500"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <div className="flex items-center gap-1.5 text-xs">
             <button
               onClick={() => setFilterType('ALL')}
               className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
                 filterType === 'ALL' ? 'bg-purple-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
               }`}
             >
-              Tümü ({products.length})
+              Tüm Ürünler ({products.length})
             </button>
 
             <button
-              onClick={() => setFilterType('PRE_ORDER')}
+              onClick={() => setFilterType('CATALOG')}
               className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                filterType === 'PRE_ORDER' ? 'bg-purple-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
+                filterType === 'CATALOG' ? 'bg-purple-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
               }`}
             >
-              Ön Siparişe Açık (Stoksuz)
-            </button>
-
-            <button
-              onClick={() => setFilterType('STOCK')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                filterType === 'STOCK' ? 'bg-purple-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
-              }`}
-            >
-              Stoktaki Ürünler
+              Katalogda Gösterilenler ({products.filter((p) => p.show_in_catalog).length})
             </button>
 
             <button
@@ -323,31 +329,33 @@ export const Catalog: React.FC = () => {
                 filterType === 'HIDDEN' ? 'bg-purple-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
               }`}
             >
-              Katalogda Gizli
+              Gizlenenler
             </button>
           </div>
         </div>
 
         {filteredProducts.length === 0 ? (
           <div className="p-12 text-center text-xs text-slate-500">
-            Kriterlere uygun ürün bulunamadı. Sağa üstteki "+ Katalog Ürünü Ekle" butonunu kullanarak yeni ürün ekleyebilirsiniz.
+            Kriterlere uygun ürün bulunamadı. Sağa üstteki "+ Yeni Katalog Ürünü Ekle" butonunu kullanabilirsiniz.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredProducts.map((p) => (
               <div
                 key={p.id}
-                className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3 relative hover:border-slate-700 transition-all flex flex-col justify-between"
+                className={`bg-slate-950 border p-4 rounded-xl space-y-3 relative hover:border-slate-700 transition-all flex flex-col justify-between ${
+                  p.show_in_catalog ? 'border-purple-900/80 shadow-md' : 'border-slate-800 opacity-70'
+                }`}
               >
                 <div className="flex items-start gap-3">
                   {p.image_url ? (
                     <img
                       src={p.image_url}
                       alt={p.product_name}
-                      className="w-16 h-16 rounded-xl object-cover bg-slate-900 border border-slate-800 shrink-0"
+                      className="w-14 h-14 rounded-xl object-cover bg-slate-900 border border-slate-800 shrink-0"
                     />
                   ) : (
-                    <div className="w-16 h-16 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-600 shrink-0">
+                    <div className="w-14 h-14 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-600 shrink-0">
                       <Package className="w-6 h-6" />
                     </div>
                   )}
@@ -359,18 +367,12 @@ export const Catalog: React.FC = () => {
                           {p.brand}
                         </span>
                       )}
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                          p.current_stock > 0
-                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                            : 'bg-purple-950 text-purple-300 border border-purple-800'
-                        }`}
-                      >
-                        {p.current_stock > 0 ? `🟢 Stokta (${p.current_stock} ${p.unit})` : '📦 Ön Sipariş'}
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800 shrink-0">
+                        {p.category || 'Kategorisiz'}
                       </span>
                     </div>
 
-                    <h4 className="font-bold text-white text-sm truncate mt-0.5">{p.product_name}</h4>
+                    <h4 className="font-bold text-white text-xs truncate mt-0.5">{p.product_name}</h4>
                     <span className="text-xs font-black text-emerald-400 font-mono block mt-1">
                       {formatCurrency(p.sale_price)}
                     </span>
@@ -378,15 +380,17 @@ export const Catalog: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between pt-2 border-t border-slate-900 text-xs">
-                  <button
-                    onClick={() => handleToggleShowInCatalog(p)}
-                    className={`text-[11px] font-bold flex items-center gap-1.5 ${
-                      p.show_in_catalog ? 'text-emerald-400' : 'text-slate-500'
-                    }`}
-                  >
-                    {p.show_in_catalog ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                    <span>{p.show_in_catalog ? 'Katalogda Yayında' : 'Katalogda Gizli'}</span>
-                  </button>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={p.show_in_catalog !== false}
+                      onChange={() => handleToggleShowInCatalog(p)}
+                      className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-purple-600 focus:ring-0"
+                    />
+                    <span className={`text-[11px] font-bold ${p.show_in_catalog ? 'text-purple-300' : 'text-slate-500'}`}>
+                      {p.show_in_catalog ? '☑ Katalogda Göster' : '☐ Katalogda Gizle'}
+                    </span>
+                  </label>
 
                   <button
                     onClick={() => {

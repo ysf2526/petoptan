@@ -8,6 +8,8 @@ import { preOrderService } from '@/services/preOrderService';
 import { LayoutContextType } from '@/components/layout/Layout';
 import { calculateNetCustomerDebt } from '@/services/consolidatedPaymentPlanService';
 import { calculateCustomerPaymentDelay } from '@/services/customerOverdueService';
+import { catalogService } from '@/services/catalogService';
+import { normalizeTurkishPhone, openWhatsAppWeb } from '@/services/whatsappService';
 import {
   Users,
   ArrowLeft,
@@ -27,6 +29,7 @@ import {
   CheckCircle2,
   Save,
   ClipboardList,
+  Store,
 } from 'lucide-react';
 
 interface PurchaseHistoryItem {
@@ -258,11 +261,39 @@ export const CustomerDetail: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-2">
           <button
+            onClick={async () => {
+              if (!customer) return;
+              try {
+                const slug = await catalogService.getOwnerCatalogSlug();
+                const url = `${window.location.origin}/catalog/${slug}`;
+                const msg = `Merhaba ${customer.business_name},\n\nGüncel toptan ürün kataloğumuzu aşağıdaki bağlantıdan inceleyebilir ve ön siparişlerinizi iletebilirsiniz:\n\n🔗 ${url}`;
+
+                if (customer.phone) {
+                  const norm = normalizeTurkishPhone(customer.phone);
+                  if (norm.isValid) {
+                    openWhatsAppWeb(norm.normalized, msg);
+                    showSuccess(`${customer.business_name} için WhatsApp katalog bağlantısı açıldı.`);
+                    return;
+                  }
+                }
+                navigator.clipboard.writeText(url);
+                showSuccess('Katalog bağlantısı panoya kopyalandı.');
+              } catch (err: any) {
+                showError('Katalog linki oluşturulamadı.');
+              }
+            }}
+            className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5 shadow-lg shadow-purple-600/20 transition-all active:scale-95"
+          >
+            <Store className="w-4 h-4" />
+            <span>KATALOĞU GÖNDER</span>
+          </button>
+
+          <button
             onClick={() => openCustomerStatementModal(customer.id)}
             className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
           >
             <Send className="w-4 h-4" />
-            <span>CARİ ÖZETİ WHATSAPP'TAN GÖNDER</span>
+            <span>CARİ ÖZETİ GÖNDER</span>
           </button>
 
           <button
