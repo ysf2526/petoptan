@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Package, ClipboardList, Eye, ImageIcon, Tag, Truck, Barcode, DollarSign } from 'lucide-react';
+import { X, Package, ClipboardList, Eye, EyeOff, ImageIcon, Tag, Truck, Barcode, DollarSign } from 'lucide-react';
 import { Product } from '@/types/database.types';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
 
@@ -113,10 +113,16 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             </div>
 
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-              <span className="text-slate-500 font-semibold block mb-1">Katalog Durumu</span>
-              <span className="font-bold text-slate-300 block">
-                {product.show_in_catalog !== false ? '☑ Yayında' : '❌ Gizli'}
-              </span>
+              <span className="text-slate-500 font-semibold block mb-1">PDF Katalog</span>
+              {product.show_in_catalog !== false ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 mt-0.5">
+                  <Eye className="w-3.5 h-3.5" /> PDF'te Açık
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 mt-0.5">
+                  <EyeOff className="w-3.5 h-3.5" /> PDF'te Gizli
+                </span>
+              )}
             </div>
           </div>
 

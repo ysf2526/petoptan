@@ -21,6 +21,7 @@ import {
   Loader2,
   ClipboardList,
   Eye,
+  EyeOff,
   ImageIcon,
 } from 'lucide-react';
 
@@ -36,6 +37,7 @@ export const Products: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<ProductType | 'ALL'>('ALL');
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
+  const [filterCatalog, setFilterCatalog] = useState<'ALL' | 'SHOW' | 'HIDE'>('ALL');
   const [onlyCritical, setOnlyCritical] = useState<boolean>(false);
 
   // Modals state
@@ -111,6 +113,22 @@ export const Products: React.FC = () => {
     }
   };
 
+  const handleToggleShowInCatalog = async (prod: Product) => {
+    try {
+      const updatedVal = prod.show_in_catalog === false ? true : false;
+      const { error } = await supabase
+        .from('products')
+        .update({ show_in_catalog: updatedVal, updated_at: new Date().toISOString() })
+        .eq('id', prod.id);
+
+      if (error) throw error;
+      setProducts((prev) => prev.map((p) => (p.id === prod.id ? { ...p, show_in_catalog: updatedVal } : p)));
+      showSuccess(`"${prod.product_name}" ${updatedVal ? 'PDF kataloğuna eklendi' : 'PDF kataloğundan gizlendi'}.`);
+    } catch (err) {
+      showError(parseErrorMessage(err));
+    }
+  };
+
   const handleOpenNewProduct = () => {
     setTypeModalOpen(true);
   };
@@ -135,9 +153,13 @@ export const Products: React.FC = () => {
     const pType = p.product_type || 'stock';
     const matchesType = filterType === 'ALL' || pType === filterType;
     const matchesCategory = filterCategory === 'ALL' || p.category === filterCategory;
+    const matchesCatalog =
+      filterCatalog === 'ALL' ||
+      (filterCatalog === 'SHOW' && p.show_in_catalog !== false) ||
+      (filterCatalog === 'HIDE' && p.show_in_catalog === false);
     const matchesCritical = !onlyCritical || p.current_stock < p.minimum_stock;
 
-    return matchesSearch && matchesType && matchesCategory && matchesCritical;
+    return matchesSearch && matchesType && matchesCategory && matchesCatalog && matchesCritical;
   });
 
   return (
@@ -216,7 +238,7 @@ export const Products: React.FC = () => {
       </div>
 
       {/* Search & Secondary Filter Bar */}
-      <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3 items-center">
+      <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-center">
         {/* Search Input */}
         <div className="relative sm:col-span-2">
           <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
@@ -243,6 +265,19 @@ export const Products: React.FC = () => {
           </select>
         </div>
 
+        {/* PDF Catalog Visibility Filter */}
+        <div>
+          <select
+            value={filterCatalog}
+            onChange={(e) => setFilterCatalog(e.target.value as any)}
+            className="w-full bg-slate-950 border border-slate-700 focus:border-brand-500 rounded-xl p-2 text-xs text-slate-100 outline-none font-bold"
+          >
+            <option value="ALL">Tüm PDF Durumları</option>
+            <option value="SHOW">👁️ PDF Kataloğundakiler ({products.filter((p) => p.show_in_catalog !== false).length})</option>
+            <option value="HIDE">🙈 PDF'te Gizlenenler ({products.filter((p) => p.show_in_catalog === false).length})</option>
+          </select>
+        </div>
+
         {/* Critical Stock Toggle */}
         <button
           onClick={() => setOnlyCritical(!onlyCritical)}
@@ -253,7 +288,7 @@ export const Products: React.FC = () => {
           }`}
         >
           <AlertTriangle className="w-4 h-4 text-amber-400" />
-          <span>Kritik Stoktakiler ({products.filter((p) => p.current_stock < p.minimum_stock).length})</span>
+          <span>Kritik Stok ({products.filter((p) => p.current_stock < p.minimum_stock).length})</span>
         </button>
       </div>
 
@@ -384,13 +419,30 @@ export const Products: React.FC = () => {
                       </td>
 
                       <td className="p-4 text-center">
-                        {p.show_in_catalog !== false ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded">
-                            <Eye className="w-3 h-3" /> Yayında
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-slate-500">Gizli</span>
-                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleShowInCatalog(p);
+                          }}
+                          title={p.show_in_catalog !== false ? 'PDF Kataloğundan Gizle' : 'PDF Kataloğuna Ekle'}
+                          className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg border transition-all active:scale-95 cursor-pointer ${
+                            p.show_in_catalog !== false
+                              ? 'text-emerald-400 bg-emerald-950/60 border-emerald-800/60 hover:bg-emerald-900/60 shadow-sm'
+                              : 'text-slate-500 bg-slate-950 border-slate-800 hover:text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          {p.show_in_catalog !== false ? (
+                            <>
+                              <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>PDF'te Açık</span>
+                            </>
+                          ) : (
+                            <>
+                              <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+                              <span>PDF'te Gizli</span>
+                            </>
+                          )}
+                        </button>
                       </td>
 
                       <td className="p-4 text-right">
