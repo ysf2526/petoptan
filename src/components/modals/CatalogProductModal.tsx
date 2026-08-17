@@ -27,7 +27,7 @@ interface CatalogProductModalProps {
 }
 
 const PRODUCT_UNITS: ProductUnit[] = ['Adet', 'Kutu', 'Paket', 'Koli', 'Çuval', 'Kg', 'Litre'];
-const COMMON_CATEGORIES = ['Kedi Maması', 'Köpek Maması', 'Kedi Kumu', 'Konserve & Yaş Mama', 'Ödül & Yaş Mama', 'Aksesuar & Oyuncak', 'Sağlık & Bakım'];
+const COMMON_CATEGORIES = ['Kedi Maması', 'Köpek Maması', 'Konserve & Yaş Mama', 'Ödül & Yaş Mama', 'Kedi Kumu', 'Sağlık & Bakım', 'Aksesuar & Oyuncak'];
 
 export const CatalogProductModal: React.FC<CatalogProductModalProps> = ({
   isOpen,

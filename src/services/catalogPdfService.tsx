@@ -2,7 +2,7 @@ import React from 'react';
 import { pdf } from '@react-pdf/renderer';
 import { supabase } from '@/lib/supabase';
 import { Product, Profile } from '@/types/database.types';
-import { CatalogDocumentPdf } from '@/lib/pdf/CatalogDocumentPdf';
+import { CatalogDocumentPdf, getCategorySortRank } from '@/lib/pdf/CatalogDocumentPdf';
 import { formatDate } from '@/utils/formatters';
 
 export const catalogPdfService = {
@@ -41,14 +41,28 @@ export const catalogPdfService = {
       throw new Error('Katalogda gösterilmek üzere işaretlenmiş ürün bulunamadı. Lütfen Ürünler ekranından ürünleri katalogda gösterecek şekilde ayarlayın.');
     }
 
-    // 3. Group by Category
-    const productsByCategory: Record<string, Product[]> = {};
+    // 3. Group by Category (Mama categories first, Aksesuar & Oyuncak last)
+    const rawProductsByCategory: Record<string, Product[]> = {};
     products.forEach((p) => {
       const cat = p.category?.trim() || 'Genel Ürünler';
-      if (!productsByCategory[cat]) {
-        productsByCategory[cat] = [];
+      if (!rawProductsByCategory[cat]) {
+        rawProductsByCategory[cat] = [];
       }
-      productsByCategory[cat].push(p);
+      rawProductsByCategory[cat].push(p);
+    });
+
+    const sortedCategoryKeys = Object.keys(rawProductsByCategory).sort((a, b) => {
+      const rankA = getCategorySortRank(a);
+      const rankB = getCategorySortRank(b);
+      if (rankA !== rankB) {
+        return rankA - rankB;
+      }
+      return a.localeCompare(b, 'tr');
+    });
+
+    const productsByCategory: Record<string, Product[]> = {};
+    sortedCategoryKeys.forEach((cat) => {
+      productsByCategory[cat] = rawProductsByCategory[cat];
     });
 
     const generatedDate = formatDate(new Date().toISOString());

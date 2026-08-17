@@ -343,6 +343,34 @@ const formatCategoryDisplayTitle = (rawCategory: string): string => {
   return upper;
 };
 
+/**
+ * Custom category sorting priority for PDF catalog:
+ * 1. Food / Mama categories FIRST (Kedi Maması, Köpek Maması, Konserve & Yaş Mama, Ödül Mamaları)
+ * 2. Other categories MIDDLE (Kedi Kumu, Sağlık & Bakım, etc.)
+ * 3. Accessories & Toys LAST (Aksesuar & Oyuncak, etc.)
+ */
+export const getCategorySortRank = (categoryName: string): number => {
+  if (!categoryName) return 999;
+  const upper = categoryName.trim().toUpperCase();
+
+  // 1. Food / Mama categories (First / Start)
+  if (upper.includes('KEDİ MAMASI') || upper.includes('KEDI MAMASI')) return 10;
+  if (upper.includes('KÖPEK MAMASI') || upper.includes('KOPEK MAMASI')) return 11;
+  if (upper.includes('KONSERVE') || upper.includes('YAŞ MAMA') || upper.includes('YAS MAMA')) return 12;
+  if (upper.includes('ÖDÜL') || upper.includes('ODUL')) return 13;
+  if (upper.includes('MAMA')) return 14;
+
+  // 3. Accessories & Toys categories (Last / End)
+  if (upper.includes('AKSESUAR') || upper.includes('OYUNCAK')) return 100;
+
+  // 2. Middle categories (Kedi Kumu, Sağlık & Bakım, etc.)
+  if (upper.includes('KUM')) return 50;
+  if (upper.includes('SAĞLIK') || upper.includes('SAGLIK') || upper.includes('BAKIM')) return 51;
+
+  // Default for other categories
+  return 70;
+};
+
 export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
   profile,
   productsByCategory,
@@ -365,7 +393,17 @@ export const CatalogDocumentPdf: React.FC<CatalogDocumentPdfProps> = ({
   // No page will EVER mix products from two different categories!
   const pages: CategoryPageData[] = [];
 
-  Object.entries(productsByCategory).forEach(([categoryName, items]) => {
+  const sortedCategories = Object.keys(productsByCategory).sort((a, b) => {
+    const rankA = getCategorySortRank(a);
+    const rankB = getCategorySortRank(b);
+    if (rankA !== rankB) {
+      return rankA - rankB;
+    }
+    return a.localeCompare(b, 'tr');
+  });
+
+  sortedCategories.forEach((categoryName) => {
+    const items = productsByCategory[categoryName];
     if (!items || items.length === 0) return;
 
     const displayCategoryTitle = formatCategoryDisplayTitle(categoryName);
