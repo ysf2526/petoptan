@@ -22,12 +22,24 @@ import {
   Edit2,
   DollarSign,
   Package,
+  Search,
+  Filter,
+  RefreshCw,
+  RotateCcw,
+  Sliders,
+  Plus,
+  Minus,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface SuggestedProductItem {
   product_id: string;
   product_name: string;
+  brand?: string | null;
+  category?: string | null;
   unit: string;
+  purchase_price: number;
+  sale_price: number;
   unit_profit: number;
   past_sales_qty: number;
   suggested_qty: number;
@@ -48,8 +60,13 @@ export const ProfitTargets: React.FC = () => {
   const [realizedProfit, setRealizedProfit] = useState<number>(0);
   const [totalMonthlySales, setTotalMonthlySales] = useState<number>(0);
 
-  // Suggestions state
+  // Suggestions state (All products in database)
   const [suggestedItems, setSuggestedItems] = useState<SuggestedProductItem[]>([]);
+
+  // Search & Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [filterType, setFilterType] = useState<'ALL' | 'SUGGESTED' | 'BESTSELLERS'>('ALL');
 
   const fetchProfitData = useCallback(async () => {
     setLoading(true);
@@ -81,14 +98,15 @@ export const ProfitTargets: React.FC = () => {
       setRealizedProfit(mProfit);
       setTotalMonthlySales(mSales);
 
-      // 3. Automated Sales Suggestion calculation
+      // 3. Automated Sales Suggestion calculation for ALL active products
       const remainingProfitNeeded = Math.max(0, tgt - mProfit);
 
       const { data: prods } = await supabase
         .from('products')
         .select('*')
         .eq('active', true)
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .order('product_name', { ascending: true });
 
       const { data: pastSaleItems } = await supabase
         .from('sale_items')
@@ -100,47 +118,55 @@ export const ProfitTargets: React.FC = () => {
         pastQtyMap[it.product_id] = (pastQtyMap[it.product_id] || 0) + Number(it.quantity || 0);
       });
 
-      // Filter products with positive unit profit
-      const validProds = (prods || []).map((p) => {
+      const allProductItems: SuggestedProductItem[] = (prods || []).map((p) => {
         const uProfit = calculateUnitProfit(p.purchase_price, p.sale_price);
         return {
           product_id: p.id,
           product_name: p.product_name,
-          unit: p.unit,
-          unit_profit: Math.max(0.01, uProfit),
+          brand: p.brand,
+          category: p.category || 'Kategorisiz',
+          unit: p.unit || 'Adet',
+          purchase_price: Number(p.purchase_price || 0),
+          sale_price: Number(p.sale_price || 0),
+          unit_profit: Math.max(0, uProfit),
           past_sales_qty: pastQtyMap[p.id] || 0,
+          suggested_qty: 0,
         };
-      }).filter((p) => p.unit_profit > 0);
+      });
 
-      // Sort by popularity / past sales or unit profit
-      validProds.sort((a, b) => b.past_sales_qty - a.past_sales_qty || b.unit_profit - a.unit_profit);
+      // Sort initially by sales velocity, then unit profit
+      allProductItems.sort((a, b) => b.past_sales_qty - a.past_sales_qty || b.unit_profit - a.unit_profit);
 
-      if (remainingProfitNeeded > 0 && validProds.length > 0) {
-        // Distribute remaining profit requirement proportionally to past sales velocity & unit profit
-        const topN = validProds.slice(0, 8); // Top 8 products
-        const totalWeight = topN.reduce((acc, curr) => acc + (curr.past_sales_qty + 1) * curr.unit_profit, 0);
+      if (remainingProfitNeeded > 0 && allProductItems.length > 0) {
+        // Calculate smart proportional distribution across ALL products
+        const validProds = allProductItems.filter((p) => p.unit_profit > 0);
+        const totalWeight = validProds.reduce(
+          (acc, curr) => acc + (curr.past_sales_qty + 1) * curr.unit_profit,
+          0
+        );
 
-        const suggestions: SuggestedProductItem[] = topN.map((p) => {
+        const distributed = allProductItems.map((p) => {
+          if (p.unit_profit <= 0 || totalWeight <= 0) return p;
           const weight = ((p.past_sales_qty + 1) * p.unit_profit) / totalWeight;
           const targetProfitShare = remainingProfitNeeded * weight;
           const suggestedQty = Math.ceil(targetProfitShare / p.unit_profit);
-
           return {
             ...p,
             suggested_qty: suggestedQty,
           };
         });
 
-        setSuggestedItems(suggestions);
+        setSuggestedItems(distributed);
       } else {
-        setSuggestedItems([]);
+        setSuggestedItems(allProductItems);
       }
     } catch (err) {
       console.error(err);
+      showError('Veriler yüklenirken hata oluştu.');
     } finally {
       setLoading(false);
     }
-  }, [year, month]);
+  }, [year, month, showError]);
 
   useEffect(() => {
     fetchProfitData();
@@ -180,15 +206,68 @@ export const ProfitTargets: React.FC = () => {
     }
   };
 
-  const handleUpdateSuggestedQty = (index: number, val: number) => {
-    setSuggestedItems((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], suggested_qty: Math.max(0, val) };
-      return updated;
-    });
+  const handleUpdateSuggestedQty = (productId: string, val: number) => {
+    setSuggestedItems((prev) =>
+      prev.map((item) =>
+        item.product_id === productId
+          ? { ...item, suggested_qty: Math.max(0, val) }
+          : item
+      )
+    );
   };
 
-  // Metric Calculations
+  // Distribution Helper Presets
+  const handleAutoDistributeSmart = () => {
+    const remainingNeeded = Math.max(0, targetAmount - realizedProfit);
+    if (remainingNeeded <= 0) {
+      setSuggestedItems((prev) => prev.map((p) => ({ ...p, suggested_qty: 0 })));
+      showSuccess('Hedef zaten tamamlanmış.');
+      return;
+    }
+
+    const validProds = suggestedItems.filter((p) => p.unit_profit > 0);
+    const totalWeight = validProds.reduce(
+      (acc, p) => acc + (p.past_sales_qty + 1) * p.unit_profit,
+      0
+    );
+
+    if (totalWeight <= 0) return;
+
+    setSuggestedItems((prev) =>
+      prev.map((p) => {
+        if (p.unit_profit <= 0) return { ...p, suggested_qty: 0 };
+        const weight = ((p.past_sales_qty + 1) * p.unit_profit) / totalWeight;
+        const targetShare = remainingNeeded * weight;
+        const suggestedQty = Math.ceil(targetShare / p.unit_profit);
+        return { ...p, suggested_qty: suggestedQty };
+      })
+    );
+    showSuccess('Satış hedefleri tüm ürünlere akıllı olarak dağıtıldı.');
+  };
+
+  const handleAutoDistributeEqual = () => {
+    const remainingNeeded = Math.max(0, targetAmount - realizedProfit);
+    const validProds = suggestedItems.filter((p) => p.unit_profit > 0);
+    if (validProds.length === 0) return;
+
+    const perProductNeeded = remainingNeeded / validProds.length;
+
+    setSuggestedItems((prev) =>
+      prev.map((p) => {
+        if (p.unit_profit <= 0) return { ...p, suggested_qty: 0 };
+        const suggestedQty = Math.ceil(perProductNeeded / p.unit_profit);
+        return { ...p, suggested_qty: suggestedQty };
+      })
+    );
+    showSuccess('Kâr hedefi tüm kârlı ürünlere eşit dağıtıldı.');
+  };
+
+  const handleResetSuggested = () => {
+    setSuggestedItems((prev) => prev.map((p) => ({ ...p, suggested_qty: 0 })));
+    showSuccess('Satış miktarları sıfırlandı.');
+  };
+
+  // Metrics
   const remainingProfit = Math.max(0, targetAmount - realizedProfit);
   const targetPercentage = targetAmount > 0 ? Math.min(100, Math.round((realizedProfit / targetAmount) * 100)) : 0;
   const daysInMonth = getDaysInCurrentMonth();
@@ -197,7 +276,6 @@ export const ProfitTargets: React.FC = () => {
 
   const requiredDailyProfit = remainingDays > 0 ? Number((remainingProfit / remainingDays).toFixed(2)) : 0;
 
-  // Projection based on current daily run-rate
   const avgDailyProfitSoFar = currentDayOfMonth > 0 ? realizedProfit / currentDayOfMonth : 0;
   const projectedEndMonthProfit = Math.round(realizedProfit + avgDailyProfitSoFar * remainingDays);
 
@@ -206,14 +284,40 @@ export const ProfitTargets: React.FC = () => {
     0
   );
 
+  const coveragePercent = remainingProfit > 0
+    ? Math.round((suggestedTotalProfit / remainingProfit) * 100)
+    : 100;
+
+  // Categories for filter dropdown
+  const categories = Array.from(new Set(suggestedItems.map((item) => item.category).filter(Boolean))) as string[];
+
+  // Filtered Products
+  const filteredItems = suggestedItems.filter((item) => {
+    const query = searchQuery.toLowerCase().trim();
+    const matchesSearch =
+      !query ||
+      item.product_name.toLowerCase().includes(query) ||
+      (item.brand && item.brand.toLowerCase().includes(query)) ||
+      (item.category && item.category.toLowerCase().includes(query));
+
+    const matchesCat = selectedCategory === 'ALL' || item.category === selectedCategory;
+
+    const matchesFilterType =
+      filterType === 'ALL' ||
+      (filterType === 'SUGGESTED' && item.suggested_qty > 0) ||
+      (filterType === 'BESTSELLERS' && item.past_sales_qty > 0);
+
+    return matchesSearch && matchesCat && matchesFilterType;
+  });
+
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-6 pb-12 animate-fadeIn">
       {/* Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-4 sm:p-6 rounded-2xl">
         <div>
-          <h2 className="text-xl font-bold text-white tracking-tight">Aylık Kâr Hedefleri & Satış Önerileri</h2>
+          <h2 className="text-xl font-bold text-white tracking-tight">Aylık Kâr Hedefleri & Satış Planlama</h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Finansal hedefinizi belirleyin, ay sonu kâr projeksiyonunu takip edin ve hedefe ulaşmak için otomatik ürün satış önerilerini inceleyin.
+            Finansal hedefinizi belirleyin, tüm ürün portföyünüz ({suggestedItems.length} ürün) üzerinden hedef kâra ulaşmak için satış miktarlarını planlayın.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -226,7 +330,7 @@ export const ProfitTargets: React.FC = () => {
       {loading ? (
         <div className="p-12 text-center text-slate-400 flex flex-col items-center">
           <Loader2 className="w-8 h-8 animate-spin text-brand-500 mb-2" />
-          <span>Hedef ve Kâr Analizi Hesaplanıyor...</span>
+          <span>Tüm Ürün Portföyü & Kâr Analizi Hesaplanıyor...</span>
         </div>
       ) : (
         <>
@@ -281,8 +385,8 @@ export const ProfitTargets: React.FC = () => {
             {/* Progress Bar */}
             <div className="space-y-2">
               <div className="flex justify-between text-xs font-semibold">
-                <span className="text-emerald-400">Gerçekleşen: {formatCurrency(realizedProfit)}</span>
-                <span className="text-amber-400">Kalan: {formatCurrency(remainingProfit)}</span>
+                <span className="text-emerald-400">Gerçekleşen Kâr: {formatCurrency(realizedProfit)}</span>
+                <span className="text-amber-400">Kalan Hedef Kâr: {formatCurrency(remainingProfit)}</span>
               </div>
               <div className="w-full bg-slate-950 h-3.5 rounded-full overflow-hidden border border-slate-800 p-0.5">
                 <div
@@ -307,9 +411,9 @@ export const ProfitTargets: React.FC = () => {
               </div>
 
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-                <span className="text-xs text-slate-400 font-medium block">Gerçekleşen Kâr</span>
+                <span className="text-xs text-slate-400 font-medium block">Gerçekleşen Net Kâr</span>
                 <span className="text-xl font-extrabold text-emerald-400 block mt-1">{formatCurrency(realizedProfit)}</span>
-                <span className="text-[11px] text-slate-500 block mt-0.5">Bu Ayki Net Kâr</span>
+                <span className="text-[11px] text-slate-500 block mt-0.5">Bu Ayki Satış Kârı</span>
               </div>
 
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
@@ -320,79 +424,233 @@ export const ProfitTargets: React.FC = () => {
             </div>
           </div>
 
-          {/* AUTOMATED SALES SUGGESTIONS ENGINE (Prompt Section 15) */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+          {/* AUTOMATED SALES PLANNER FOR ALL PRODUCTS */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+            {/* Header & Controls */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
                   <Sparkles className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-white text-base">Akıllı Satış Hedefi Önerileri</h3>
-                  <p className="text-xs text-slate-400">
-                    Kâr hedefine ulaşmak için ürünlerin birim kârı ve satış sıklığı analiz edilerek önerilen ek satış miktarları.
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-white text-base">Tüm Ürünler İçin Satış Hedefi Planlayıcı</h3>
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-purple-950 text-purple-300 border border-purple-800/60">
+                      {suggestedItems.length} Ürün Portföyü
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Tüm aktif ürünlerinizin kâr marjını ve satış hızını kullanarak kalan {formatCurrency(remainingProfit)} kâr hedefine ulaşın.
                   </p>
                 </div>
               </div>
-              {remainingProfit > 0 && (
-                <div className="text-right text-xs bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800">
-                  <span className="text-slate-400 block">Önerilerin Sağladığı Ek Kâr</span>
-                  <span className="font-extrabold text-emerald-400 text-sm">{formatCurrency(suggestedTotalProfit)}</span>
-                </div>
-              )}
+
+              {/* Distribution Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handleAutoDistributeSmart}
+                  className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-purple-600/20 transition-all active:scale-95"
+                  title="Satış hızına ve birim kâra göre akıllı dağıt"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>⚡ Akıllı Dağıt</span>
+                </button>
+
+                <button
+                  onClick={handleAutoDistributeEqual}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all"
+                  title="Kâr hedefini tüm kârlı ürünlere eşit dağıt"
+                >
+                  <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Eşit Dağıt</span>
+                </button>
+
+                <button
+                  onClick={handleResetSuggested}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-400 border border-slate-700 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all"
+                  title="Satış miktarlarını temizle"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Sıfırla</span>
+                </button>
+              </div>
             </div>
 
-            {remainingProfit <= 0 ? (
-              <div className="p-8 text-center bg-slate-950/60 rounded-xl border border-emerald-500/30">
-                <p className="text-emerald-400 font-bold text-sm">
-                  Tebrikler! Bu ayki kâr hedefinizi (%100) başarıyla tamamladınız!
-                </p>
+            {/* Target Plan Live Summary Banner */}
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+              <div>
+                <span className="text-xs text-slate-400 block font-semibold">Planlanan Ürün Satış Kârı</span>
+                <span className="text-xl font-black text-emerald-400">{formatCurrency(suggestedTotalProfit)}</span>
               </div>
-            ) : suggestedItems.length === 0 ? (
-              <p className="p-8 text-center text-xs text-slate-500">
-                Öneri oluşturulabilecek aktif ürün bulunamadı. Lütfen yeni ürün kartları ekleyin.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-xs text-amber-400 font-medium">
-                  Mevcut satış hızına göre hedefe ulaşmak için kalan {formatCurrency(remainingProfit)} kâr ihtiyacına yönelik önerilen ürün satış adetleri:
-                </p>
 
-                <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-900 text-slate-400 uppercase font-semibold border-b border-slate-800">
-                        <tr>
-                          <th className="p-3">Ürün Adı</th>
-                          <th className="p-3 text-right">Birim Kâr</th>
-                          <th className="p-3 text-center">Geçmiş Satış Hızı</th>
-                          <th className="p-3 text-center w-36">Önerilen Ek Satış</th>
-                          <th className="p-3 text-right">Hedeflenen Katkı (TL)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800 text-slate-200">
-                        {suggestedItems.map((item, idx) => (
-                          <tr key={item.product_id} className="hover:bg-slate-900/60">
-                            <td className="p-3 font-bold text-white">{item.product_name}</td>
-                            <td className="p-3 text-right font-semibold text-emerald-400">{formatCurrency(item.unit_profit)}</td>
-                            <td className="p-3 text-center text-slate-400">{formatNumber(item.past_sales_qty)} {item.unit}</td>
-                            <td className="p-3 text-center">
-                              <input
-                                type="number"
-                                min={0}
-                                value={item.suggested_qty}
-                                onChange={(e) => handleUpdateSuggestedQty(idx, Number(e.target.value))}
-                                className="w-24 bg-slate-900 border border-brand-500/50 rounded-lg p-1.5 text-center text-xs font-extrabold text-white outline-none"
-                              />
+              <div>
+                <span className="text-xs text-slate-400 block font-semibold">Gerekli Kalan Kâr</span>
+                <span className="text-xl font-black text-amber-400">{formatCurrency(remainingProfit)}</span>
+              </div>
+
+              <div className="flex items-center gap-3 justify-between sm:justify-end border-t sm:border-t-0 sm:border-l border-slate-800 pt-2 sm:pt-0 sm:pl-4">
+                <div>
+                  <span className="text-xs text-slate-400 block font-semibold">Kâr Hedefi Karşılama Oranı</span>
+                  <span className={`text-xl font-black ${coveragePercent >= 100 ? 'text-emerald-400' : 'text-purple-400'}`}>
+                    %{coveragePercent}
+                  </span>
+                </div>
+                {coveragePercent >= 100 ? (
+                  <span className="px-3 py-1 rounded-lg bg-emerald-950 text-emerald-300 text-xs font-bold border border-emerald-800">
+                    🎯 Hedef Karşılandı
+                  </span>
+                ) : (
+                  <span className="px-3 py-1 rounded-lg bg-amber-950 text-amber-300 text-xs font-bold border border-amber-800">
+                    ⚠️ Kalan Açık Var
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3 items-center pt-1">
+              <div className="relative sm:col-span-2">
+                <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Ürün adı, marka veya kategori ara..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 pl-10 pr-4 text-xs text-white placeholder-slate-500 outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-slate-200 outline-none focus:border-purple-500 font-semibold"
+                >
+                  <option value="ALL">Tüm Kategoriler ({categories.length})</option>
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1 text-xs">
+                <button
+                  onClick={() => setFilterType('ALL')}
+                  className={`flex-1 py-2 px-2 rounded-lg font-extrabold text-[11px] transition-all ${
+                    filterType === 'ALL' ? 'bg-purple-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Tümü ({suggestedItems.length})
+                </button>
+
+                <button
+                  onClick={() => setFilterType('SUGGESTED')}
+                  className={`flex-1 py-2 px-2 rounded-lg font-extrabold text-[11px] transition-all ${
+                    filterType === 'SUGGESTED' ? 'bg-purple-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Hedeftekiler ({suggestedItems.filter((i) => i.suggested_qty > 0).length})
+                </button>
+
+                <button
+                  onClick={() => setFilterType('BESTSELLERS')}
+                  className={`flex-1 py-2 px-2 rounded-lg font-extrabold text-[11px] transition-all ${
+                    filterType === 'BESTSELLERS' ? 'bg-purple-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Çok Satanlar ({suggestedItems.filter((i) => i.past_sales_qty > 0).length})
+                </button>
+              </div>
+            </div>
+
+            {/* Products Table */}
+            {filteredItems.length === 0 ? (
+              <div className="p-8 text-center bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-500">
+                Arama kriterlerine uygun ürün bulunamadı.
+              </div>
+            ) : (
+              <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950 shadow-inner">
+                <div className="overflow-x-auto max-h-[600px] custom-scrollbar">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900 text-slate-400 uppercase font-semibold border-b border-slate-800 sticky top-0 z-10">
+                      <tr>
+                        <th className="p-3">Ürün Bilgisi</th>
+                        <th className="p-3 text-right">Satış Fiyatı</th>
+                        <th className="p-3 text-right">Birim Kâr</th>
+                        <th className="p-3 text-center">Geçmiş Satış Adedi</th>
+                        <th className="p-3 text-center w-44">Hedeflenen Satış Adedi</th>
+                        <th className="p-3 text-right">Hedef Kâr Katkısı</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/70 text-slate-200">
+                      {filteredItems.map((item) => {
+                        const itemContribution = item.suggested_qty * item.unit_profit;
+                        return (
+                          <tr
+                            key={item.product_id}
+                            className={`hover:bg-slate-900/80 transition-colors ${
+                              item.suggested_qty > 0 ? 'bg-purple-950/20' : ''
+                            }`}
+                          >
+                            <td className="p-3">
+                              <div className="font-bold text-white text-xs">{item.product_name}</div>
+                              <span className="text-[11px] text-slate-400">
+                                {item.brand || 'Markasız'} • {item.category} ({item.unit})
+                              </span>
                             </td>
-                            <td className="p-3 text-right font-extrabold text-brand-400">
-                              {formatCurrency(item.suggested_qty * item.unit_profit)}
+
+                            <td className="p-3 text-right font-medium text-slate-300">
+                              {formatCurrency(item.sale_price)}
+                            </td>
+
+                            <td className="p-3 text-right font-bold text-emerald-400">
+                              {formatCurrency(item.unit_profit)}
+                            </td>
+
+                            <td className="p-3 text-center text-slate-400 font-mono">
+                              {formatNumber(item.past_sales_qty)} {item.unit}
+                            </td>
+
+                            <td className="p-3 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateSuggestedQty(item.product_id, item.suggested_qty - 1)}
+                                  className="w-7 h-7 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 transition-all"
+                                >
+                                  <Minus className="w-3 h-3" />
+                                </button>
+
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={item.suggested_qty}
+                                  onChange={(e) =>
+                                    handleUpdateSuggestedQty(item.product_id, Number(e.target.value))
+                                  }
+                                  className="w-16 bg-slate-900 border border-purple-500/50 rounded-lg p-1.5 text-center text-xs font-black text-white outline-none focus:border-purple-400 font-mono"
+                                />
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateSuggestedQty(item.product_id, item.suggested_qty + 1)}
+                                  className="w-7 h-7 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 transition-all"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </td>
+
+                            <td className="p-3 text-right font-black text-purple-300">
+                              {formatCurrency(itemContribution)}
                             </td>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
